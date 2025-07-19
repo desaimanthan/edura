@@ -32,7 +32,7 @@ async def get_roles(current_user: UserInDB = Depends(get_current_active_user)):
     role_responses = []
     for role in roles:
         # Get user count for this role
-        user_count = await users_collection.count_documents({"role_id": str(role["_id"])})
+        user_count = await users_collection.count_documents({"role_id": role["_id"]})
         
         # Populate permissions
         populated_permissions = []
@@ -224,7 +224,7 @@ async def update_role(
     updated_role = await roles_collection.find_one({"_id": ObjectId(role_id)})
     
     # Get user count
-    user_count = await users_collection.count_documents({"role_id": role_id})
+    user_count = await users_collection.count_documents({"role_id": ObjectId(role_id)})
     
     # Populate permissions
     populated_permissions = []
@@ -279,7 +279,7 @@ async def delete_role(
         )
     
     # Check if any users have this role
-    users_with_role = await users_collection.count_documents({"role_id": role_id})
+    users_with_role = await users_collection.count_documents({"role_id": ObjectId(role_id)})
     if users_with_role > 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -321,7 +321,7 @@ async def get_role_users(
         )
     
     # Get users with this role
-    users_cursor = users_collection.find({"role_id": role_id})
+    users_cursor = users_collection.find({"role_id": ObjectId(role_id)})
     users = await users_cursor.to_list(length=None)
     
     return {
