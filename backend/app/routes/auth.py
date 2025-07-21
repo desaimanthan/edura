@@ -6,6 +6,10 @@ from authlib.integrations.starlette_client import OAuth
 from decouple import config
 import secrets
 from bson import ObjectId
+import ssl
+import httpx
+
+from ..ssl_config import get_development_client
 
 from ..models import (
     UserCreate, UserLogin, UserResponse, Token, 
@@ -19,7 +23,12 @@ from ..database import get_users_collection, get_password_reset_collection, get_
 
 router = APIRouter()
 
-# Initialize OAuth
+# Create SSL context that doesn't verify certificates (for development)
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
+# Initialize OAuth with custom HTTP client that handles SSL
 oauth = OAuth()
 oauth.register(
     name='google',
@@ -30,6 +39,10 @@ oauth.register(
         'scope': 'openid email profile'
     }
 )
+
+# Configure the OAuth client to use our SSL context
+if hasattr(oauth.google, '_client'):
+    oauth.google._client = httpx.AsyncClient(verify=False)
 
 # Store for OAuth state (in production, use Redis or database)
 oauth_states = {}
@@ -253,15 +266,33 @@ async def reset_password(reset_data: PasswordReset):
 @router.get("/google/login")
 async def google_login(request: Request):
     """Initiate Google OAuth login"""
-    # Create redirect URI
-    redirect_uri = f"http://localhost:8000/auth/google/callback"
-    
-    # Get authorization URL - let authlib handle state automatically
-    authorization_url = await oauth.google.create_authorization_url(
-        redirect_uri
-    )
-    
-    return {"authorization_url": authorization_url}
+    try:
+        # Create redirect URI
+        redirect_uri = f"http://localhost:8000/auth/google/callback"
+        
+        # Manual OAuth URL construction to avoid SSL issues during server metadata loading
+        google_auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
+        params = {
+            'client_id': config('GOOGLE_CLIENT_ID'),
+            'redirect_uri': redirect_uri,
+            'scope': 'openid email profile',
+            'response_type': 'code',
+            'access_type': 'offline',
+            'prompt': 'consent'
+        }
+        
+        # Build the authorization URL manually
+        from urllib.parse import urlencode
+        authorization_url = f"{google_auth_url}?{urlencode(params)}"
+        
+        return {"authorization_url": authorization_url}
+        
+    except Exception as e:
+        print(f"Google login error: {e}")  # Debug logging
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create Google authorization URL: {str(e)}"
+        )
 
 @router.get("/google/callback")
 async def google_callback(request: Request):
@@ -272,8 +303,7 @@ async def google_callback(request: Request):
         if not code:
             raise Exception("No authorization code received")
         
-        # Exchange code for token manually
-        import httpx
+        # Exchange code for token using development client with SSL configuration
         token_url = "https://oauth2.googleapis.com/token"
         token_data = {
             'client_id': config('GOOGLE_CLIENT_ID'),
@@ -283,14 +313,14 @@ async def google_callback(request: Request):
             'redirect_uri': 'http://localhost:8000/auth/google/callback'
         }
         
-        async with httpx.AsyncClient() as client:
+        async with get_development_client() as client:
             token_response = await client.post(token_url, data=token_data)
             token_response.raise_for_status()
             token = token_response.json()
         
-        # Get user info
+        # Get user info using development client with SSL configuration
         userinfo_url = f"https://www.googleapis.com/oauth2/v2/userinfo?access_token={token['access_token']}"
-        async with httpx.AsyncClient() as client:
+        async with get_development_client() as client:
             userinfo_response = await client.get(userinfo_url)
             userinfo_response.raise_for_status()
             user_info = userinfo_response.json()

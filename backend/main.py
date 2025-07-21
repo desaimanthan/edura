@@ -19,13 +19,18 @@ app.add_middleware(
     secret_key=config("JWT_SECRET_KEY", default="your-secret-key")
 )
 
-# CORS middleware
+# CORS middleware - more permissive for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[config("FRONTEND_URL", default="http://localhost:3000")],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        config("FRONTEND_URL", default="http://localhost:3000")
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Database connection events

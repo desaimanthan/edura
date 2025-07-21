@@ -153,7 +153,7 @@ class AuthService {
       throw new Error('Unable to connect to Google. Please try again');
     }
     
-    return response.data.authorization_url.url;
+    return response.data.authorization_url;
   }
 
   handleAuthCallback(token: string, userId: string): User {

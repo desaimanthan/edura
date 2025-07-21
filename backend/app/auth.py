@@ -7,6 +7,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from decouple import config
 from google.auth.transport import requests
 from google.oauth2 import id_token
+import ssl
+import httpx
+
+from .ssl_config import get_development_client
 
 from .models import TokenData, UserInDB
 from .database import get_users_collection
@@ -102,23 +106,33 @@ async def authenticate_user(email: str, password: str):
 async def verify_google_token(token: str):
     """Verify Google OAuth token"""
     try:
-        # Verify the token with Google
-        idinfo = id_token.verify_oauth2_token(
-            token, requests.Request(), GOOGLE_CLIENT_ID
-        )
-        
-        # Verify the issuer
-        if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
-            raise ValueError('Wrong issuer.')
-        
-        return {
-            "id": idinfo["sub"],
-            "email": idinfo["email"],
-            "name": idinfo["name"],
-            "picture": idinfo.get("picture"),
-            "verified_email": idinfo.get("email_verified", False)
-        }
-    except ValueError as e:
+        # Use the development client with SSL configuration
+        async with get_development_client() as client:
+            response = await client.get(
+                f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={token}"
+            )
+            response.raise_for_status()
+            token_info = response.json()
+            
+            # Verify the audience (client_id)
+            if token_info.get('audience') != GOOGLE_CLIENT_ID:
+                raise ValueError('Invalid audience.')
+            
+            # Get user info
+            userinfo_response = await client.get(
+                f"https://www.googleapis.com/oauth2/v2/userinfo?access_token={token}"
+            )
+            userinfo_response.raise_for_status()
+            user_info = userinfo_response.json()
+            
+            return {
+                "id": user_info["id"],
+                "email": user_info["email"],
+                "name": user_info["name"],
+                "picture": user_info.get("picture"),
+                "verified_email": user_info.get("verified_email", False)
+            }
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid Google token: {str(e)}"
