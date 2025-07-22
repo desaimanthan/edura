@@ -171,3 +171,58 @@ class RoleResponse(BaseModel):
     class Config:
         populate_by_name = True
         json_encoders = {ObjectId: str}
+
+# Course Models
+class Course(BaseModel):
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    name: str
+    description: Optional[str] = None
+    curriculum_content: Optional[str] = None  # Markdown text
+    pedagogy_content: Optional[str] = None    # Markdown text
+    created_by: PyObjectId  # User ID
+    status: str = "draft"  # draft, curriculum_complete, pedagogy_complete, complete
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
+class CourseCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class CourseUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    curriculum_content: Optional[str] = None
+    pedagogy_content: Optional[str] = None
+    status: Optional[str] = None
+
+class CourseResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    curriculum_content: Optional[str] = None
+    pedagogy_content: Optional[str] = None
+    created_by: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        populate_by_name = True
+        json_encoders = {ObjectId: str}
+
+class ContentGenerationRequest(BaseModel):
+    course_name: str
+    curriculum_content: Optional[str] = None  # For pedagogy generation
+
+class ContentEnhancementRequest(BaseModel):
+    content: str
+    content_type: str  # "curriculum" or "pedagogy"
+
+class AIResponse(BaseModel):
+    content: str
+    suggestions: Optional[list] = None  # For enhancement responses

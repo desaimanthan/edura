@@ -1,11 +1,111 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { BookOpen, Plus, Users, Clock, Star } from "lucide-react"
+import { BookOpen, Plus, Users, Clock, Star, Edit, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
+import Link from "next/link"
+import { courseAPI, Course } from "@/lib/api"
+import { toast } from "sonner"
+
+const getStatusInfo = (status: string) => {
+  switch (status) {
+    case 'draft':
+      return {
+        label: 'Draft',
+        color: 'bg-gray-100 text-gray-800',
+        icon: AlertCircle,
+        description: 'Course setup incomplete'
+      }
+    case 'curriculum_complete':
+      return {
+        label: 'Curriculum Ready',
+        color: 'bg-blue-100 text-blue-800',
+        icon: Clock,
+        description: 'Curriculum complete, pedagogy pending'
+      }
+    case 'pedagogy_complete':
+      return {
+        label: 'Pedagogy Ready',
+        color: 'bg-yellow-100 text-yellow-800',
+        icon: Clock,
+        description: 'Pedagogy complete, curriculum pending'
+      }
+    case 'complete':
+      return {
+        label: 'Complete',
+        color: 'bg-green-100 text-green-800',
+        icon: CheckCircle,
+        description: 'Course setup complete'
+      }
+    default:
+      return {
+        label: 'Unknown',
+        color: 'bg-gray-100 text-gray-800',
+        icon: AlertCircle,
+        description: 'Unknown status'
+      }
+  }
+}
+
+const getNextAction = (course: Course) => {
+  switch (course.status) {
+    case 'draft':
+      return {
+        label: 'Continue Setup',
+        href: `/courses/create/${course.id}/curriculum`,
+        variant: 'default' as const
+      }
+    case 'curriculum_complete':
+      return {
+        label: 'Add Pedagogy',
+        href: `/courses/create/${course.id}/pedagogy`,
+        variant: 'default' as const
+      }
+    case 'pedagogy_complete':
+      return {
+        label: 'Add Curriculum',
+        href: `/courses/create/${course.id}/curriculum`,
+        variant: 'default' as const
+      }
+    case 'complete':
+      return {
+        label: 'Edit Course',
+        href: `/courses/create/${course.id}/curriculum`,
+        variant: 'outline' as const
+      }
+    default:
+      return {
+        label: 'Continue Setup',
+        href: `/courses/create/${course.id}/curriculum`,
+        variant: 'default' as const
+      }
+  }
+}
 
 export default function Courses() {
+  const [courses, setCourses] = useState<Course[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const coursesData = await courseAPI.getCourses()
+        setCourses(coursesData)
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to fetch courses")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchCourses()
+  }, [])
+
+  const completeCourses = courses.filter(course => course.status === 'complete')
+  const inProgressCourses = courses.filter(course => course.status !== 'complete')
+
   return (
     <DashboardLayout title="Courses" icon={BookOpen}>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -17,18 +117,17 @@ export default function Courses() {
               Course Management
             </CardTitle>
             <CardDescription>
-              Manage your courses, view enrollments, and track progress.
+              Manage your courses, view progress, and continue course creation.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex gap-4">
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Create New Course
-              </Button>
-              <Button variant="outline">
-                Import Courses
-              </Button>
+              <Link href="/courses/create">
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create New Course
+                </Button>
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -42,96 +141,118 @@ export default function Courses() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">12</div>
-            <p className="text-sm text-muted-foreground">Active courses</p>
+            <div className="text-3xl font-bold">{courses.length}</div>
+            <p className="text-sm text-muted-foreground">
+              {completeCourses.length} complete, {inProgressCourses.length} in progress
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Users className="h-5 w-5 mr-2" />
-              Total Students
+              <CheckCircle className="h-5 w-5 mr-2" />
+              Complete Courses
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">248</div>
-            <p className="text-sm text-muted-foreground">Enrolled students</p>
+            <div className="text-3xl font-bold">{completeCourses.length}</div>
+            <p className="text-sm text-muted-foreground">Ready for content creation</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Star className="h-5 w-5 mr-2" />
-              Average Rating
+              <Clock className="h-5 w-5 mr-2" />
+              In Progress
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">4.7</div>
-            <p className="text-sm text-muted-foreground">Out of 5 stars</p>
+            <div className="text-3xl font-bold">{inProgressCourses.length}</div>
+            <p className="text-sm text-muted-foreground">Courses being set up</p>
           </CardContent>
         </Card>
 
-        {/* Recent Courses */}
+        {/* Courses List */}
         <Card className="col-span-full">
           <CardHeader>
-            <CardTitle>Recent Courses</CardTitle>
+            <CardTitle>Your Courses</CardTitle>
             <CardDescription>
-              Your most recently created or updated courses
+              {courses.length > 0 
+                ? "Manage and continue working on your courses"
+                : "You haven't created any courses yet. Start by creating your first course!"
+              }
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {/* Sample Course Items */}
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <BookOpen className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium">Introduction to Machine Learning</h3>
-                    <p className="text-sm text-muted-foreground">45 students enrolled</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Updated 2 days ago</span>
-                </div>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span className="ml-2">Loading courses...</span>
               </div>
+            ) : courses.length === 0 ? (
+              <div className="text-center py-8">
+                <BookOpen className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No courses yet</h3>
+                <p className="text-gray-600 mb-4">
+                  Create your first course to get started with ProfessorAI
+                </p>
+                <Link href="/courses/create">
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Your First Course
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {courses.map((course, index) => {
+                  const statusInfo = getStatusInfo(course.status)
+                  const nextAction = getNextAction(course)
+                  const StatusIcon = statusInfo.icon
 
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <BookOpen className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium">Web Development Fundamentals</h3>
-                    <p className="text-sm text-muted-foreground">32 students enrolled</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Updated 1 week ago</span>
-                </div>
+                  return (
+                    <div key={course.id || `course-${index}`} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <BookOpen className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-medium">{course.name}</h3>
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                              <StatusIcon className="h-3 w-3 mr-1" />
+                              {statusInfo.label}
+                            </span>
+                          </div>
+                          {course.description && (
+                            <p className="text-sm text-muted-foreground mb-1">{course.description}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground">{statusInfo.description}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="text-right mr-4">
+                          <div className="flex items-center text-sm text-muted-foreground">
+                            <Clock className="h-4 w-4 mr-1" />
+                            <span>
+                              Updated {new Date(course.updated_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                        <Link href={nextAction.href}>
+                          <Button variant={nextAction.variant} size="sm">
+                            <Edit className="h-4 w-4 mr-2" />
+                            {nextAction.label}
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <BookOpen className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium">Data Structures and Algorithms</h3>
-                    <p className="text-sm text-muted-foreground">28 students enrolled</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Updated 2 weeks ago</span>
-                </div>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

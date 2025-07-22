@@ -4,7 +4,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from decouple import config
 import uvicorn
 
-from app.routes import auth, users, roles, permissions
+from app.routes import auth, users, roles, permissions, courses
 from app.database import connect_to_mongo, close_mongo_connection
 
 app = FastAPI(
@@ -24,7 +24,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "http://localhost:3001",
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
         config("FRONTEND_URL", default="http://localhost:3000")
     ],
     allow_credentials=True,
@@ -47,6 +49,7 @@ app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(roles.router, prefix="/masters/roles", tags=["roles"])
 app.include_router(permissions.router, prefix="/masters/permissions", tags=["permissions"])
+app.include_router(courses.router, prefix="/courses", tags=["courses"])
 
 @app.get("/")
 async def root():

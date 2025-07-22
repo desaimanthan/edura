@@ -14,3 +14,5 @@ pydantic[email]>=2.8.0
 itsdangerous==2.2.0
 httpx==0.28.1
 certifi==2023.11.17
+openai>=1.0.0
+typing-extensions>=4.11,<5
