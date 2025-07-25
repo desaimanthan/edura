@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { BookOpen, Plus, Users, Clock, Star, Edit, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
+import { BookOpen, Plus, Users, Clock, Star, Edit, CheckCircle, AlertCircle, Loader2, Presentation, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { courseAPI, Course } from "@/lib/api"
 import { toast } from "sonner"
@@ -86,6 +86,7 @@ const getNextAction = (course: Course) => {
 
 export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([])
+  const [courseSlides, setCourseSlides] = useState<Record<string, any[]>>({})
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -93,6 +94,19 @@ export default function Courses() {
       try {
         const coursesData = await courseAPI.getCourses()
         setCourses(coursesData)
+        
+        // Fetch slide decks for each course
+        const slidesData: Record<string, any[]> = {}
+        for (const course of coursesData) {
+          try {
+            const decks = await courseAPI.getSlideDecks(course.id)
+            slidesData[course.id] = decks
+          } catch (error) {
+            // If slides don't exist, set empty array
+            slidesData[course.id] = []
+          }
+        }
+        setCourseSlides(slidesData)
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to fetch courses")
       } finally {
@@ -105,6 +119,7 @@ export default function Courses() {
 
   const completeCourses = courses.filter(course => course.status === 'complete')
   const inProgressCourses = courses.filter(course => course.status !== 'complete')
+  const coursesWithSlides = courses.filter(course => courseSlides[course.id] && courseSlides[course.id].length > 0)
 
   return (
     <DashboardLayout title="Courses" icon={BookOpen}>
@@ -164,13 +179,13 @@ export default function Courses() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Clock className="h-5 w-5 mr-2" />
-              In Progress
+              <Presentation className="h-5 w-5 mr-2" />
+              Courses with Slides
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{inProgressCourses.length}</div>
-            <p className="text-sm text-muted-foreground">Courses being set up</p>
+            <div className="text-3xl font-bold">{coursesWithSlides.length}</div>
+            <p className="text-sm text-muted-foreground">Ready for presentation</p>
           </CardContent>
         </Card>
 
@@ -211,6 +226,7 @@ export default function Courses() {
                   const statusInfo = getStatusInfo(course.status)
                   const nextAction = getNextAction(course)
                   const StatusIcon = statusInfo.icon
+                  const hasSlides = courseSlides[course.id] && courseSlides[course.id].length > 0
 
                   return (
                     <div key={course.id || `course-${index}`} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
@@ -225,6 +241,12 @@ export default function Courses() {
                               <StatusIcon className="h-3 w-3 mr-1" />
                               {statusInfo.label}
                             </span>
+                            {hasSlides && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                <Presentation className="h-3 w-3 mr-1" />
+                                {courseSlides[course.id].length} Slide Deck{courseSlides[course.id].length > 1 ? 's' : ''}
+                              </span>
+                            )}
                           </div>
                           {course.description && (
                             <p className="text-sm text-muted-foreground mb-1">{course.description}</p>
@@ -241,6 +263,25 @@ export default function Courses() {
                             </span>
                           </div>
                         </div>
+                        
+                        {/* Slide Actions */}
+                        {hasSlides ? (
+                          <Link href={`/courses/${course.id}/slides`}>
+                            <Button variant="default" size="sm" className="bg-purple-600 hover:bg-purple-700">
+                              <Presentation className="h-4 w-4 mr-2" />
+                              View Slides
+                            </Button>
+                          </Link>
+                        ) : course.status === 'complete' ? (
+                          <Link href={`/courses/create/${course.id}/workspace`}>
+                            <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
+                              <Sparkles className="h-4 w-4 mr-2" />
+                              Generate Slides
+                            </Button>
+                          </Link>
+                        ) : null}
+                        
+                        {/* Course Edit Action */}
                         <Link href={nextAction.href}>
                           <Button variant={nextAction.variant} size="sm">
                             <Edit className="h-4 w-4 mr-2" />

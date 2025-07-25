@@ -16,3 +16,7 @@ httpx==0.28.1
 certifi==2023.11.17
 openai>=1.0.0
 typing-extensions>=4.11,<5
+pyautogen>=0.2.0
+colorama>=0.4.6
+websockets>=12.0
+uuid>=1.30

@@ -3,12 +3,12 @@
 import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { BookOpen, FileText, GraduationCap, Check, Circle } from "lucide-react"
+import { BookOpen, FileText, GraduationCap, Brain, Check, Circle } from "lucide-react"
 import { Course } from "@/lib/api"
 
 interface CourseCreationNavProps {
   course: Course | null
-  currentStep: 'info' | 'curriculum' | 'pedagogy'
+  currentStep: 'info' | 'curriculum' | 'pedagogy' | 'workspace'
   courseId?: string
 }
 
@@ -41,6 +41,14 @@ export function CourseCreationNav({ course, currentStep, courseId: propCourseId 
       path: courseId ? `/courses/create/${courseId}/pedagogy` : null,
       completed: course?.pedagogy_content ? true : false,
       available: course ? true : false
+    },
+    {
+      id: 'workspace',
+      title: 'Research & Workspace',
+      icon: Brain,
+      path: courseId ? `/courses/create/${courseId}/workspace` : null,
+      completed: false, // Research is optional, so never marked as "completed"
+      available: course?.curriculum_content && course?.pedagogy_content ? true : false
     }
   ]
 

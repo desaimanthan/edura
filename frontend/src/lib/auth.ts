@@ -47,7 +47,7 @@ class AuthService {
     if (typeof window !== 'undefined') {
       this.token = localStorage.getItem('auth_token');
       const userData = localStorage.getItem('auth_user');
-      if (userData) {
+      if (userData && userData !== 'undefined' && userData !== 'null') {
         try {
           this.user = JSON.parse(userData);
         } catch (error) {

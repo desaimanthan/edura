@@ -1,0 +1,509 @@
+2025-07-24 16:00:04,964 | agent_conversation | INFO | 🚀 Starting slide generation session: 41ceef10-6e69-41d3-82ae-64810a33239c
+2025-07-24 16:00:04,964 | agent_conversation | INFO | 📚 Course: Introduction to RAG
+2025-07-24 16:00:04,964 | agent_conversation | INFO | 🎬 Initiating multi-agent conversation...
+2025-07-24 16:00:06,924 | agent_conversation | ERROR | ❌ Slide generation failed: APIConnectionError: Connection error.
+Traceback:
+Traceback (most recent call last):
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_transports/default.py", line 394, in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection_pool.py", line 256, in handle_async_request
+    raise exc from None
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection_pool.py", line 236, in handle_async_request
+    response = await connection.handle_async_request(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection.py", line 101, in handle_async_request
+    raise exc
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection.py", line 78, in handle_async_request
+    stream = await self._connect(request)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection.py", line 156, in _connect
+    stream = await stream.start_tls(**kwargs)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_backends/anyio.py", line 67, in start_tls
+    with map_exceptions(exc_map):
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+
+httpcore.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:997)
+
+
+The above exception was the direct cause of the following exception:
+
+
+Traceback (most recent call last):
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1526, in request
+    response = await self._client.send(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_client.py", line 1629, in send
+    response = await self._send_handling_auth(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_client.py", line 1657, in _send_handling_auth
+    response = await self._send_handling_redirects(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_client.py", line 1694, in _send_handling_redirects
+    response = await self._send_single_request(request)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_client.py", line 1730, in _send_single_request
+    response = await transport.handle_async_request(request)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_transports/default.py", line 393, in handle_async_request
+    with map_httpcore_exceptions():
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+
+httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:997)
+
+
+The above exception was the direct cause of the following exception:
+
+
+Traceback (most recent call last):
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/autogen_agentchat/teams/_group_chat/_chat_agent_container.py", line 84, in handle_request
+    async for msg in self._agent.on_messages_stream(self._message_buffer, ctx.cancellation_token):
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/autogen_agentchat/agents/_assistant_agent.py", line 953, in on_messages_stream
+    async for inference_output in self._call_llm(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/autogen_agentchat/agents/_assistant_agent.py", line 1107, in _call_llm
+    model_result = await model_client.create(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/autogen_ext/models/openai/_openai_client.py", line 676, in create
+    result: Union[ParsedChatCompletion[BaseModel], ChatCompletion] = await future
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/openai/resources/chat/completions/completions.py", line 2454, in create
+    return await self._post(
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1791, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1558, in request
+    raise APIConnectionError(request=request) from err
+
+openai.APIConnectionError: Connection error.
+
+2025-07-24 16:00:06,925 | agent_conversation | INFO | Creating fallback slides...
+2025-07-24 16:03:14,482 | agent_conversation | INFO | 🚀 Starting slide generation session: f2b1de77-a569-4e63-b66d-a730a064820d
+2025-07-24 16:03:14,483 | agent_conversation | INFO | 📚 Course: Introduction to RAG
+2025-07-24 16:03:14,483 | agent_conversation | INFO | 🎬 Initiating multi-agent conversation...
+2025-07-24 16:03:16,497 | agent_conversation | ERROR | ❌ Slide generation failed: APIConnectionError: Connection error.
+Traceback:
+Traceback (most recent call last):
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_transports/default.py", line 394, in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection_pool.py", line 256, in handle_async_request
+    raise exc from None
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection_pool.py", line 236, in handle_async_request
+    response = await connection.handle_async_request(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection.py", line 101, in handle_async_request
+    raise exc
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection.py", line 78, in handle_async_request
+    stream = await self._connect(request)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection.py", line 156, in _connect
+    stream = await stream.start_tls(**kwargs)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_backends/anyio.py", line 67, in start_tls
+    with map_exceptions(exc_map):
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+
+httpcore.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:997)
+
+
+The above exception was the direct cause of the following exception:
+
+
+Traceback (most recent call last):
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1526, in request
+    response = await self._client.send(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_client.py", line 1629, in send
+    response = await self._send_handling_auth(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_client.py", line 1657, in _send_handling_auth
+    response = await self._send_handling_redirects(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_client.py", line 1694, in _send_handling_redirects
+    response = await self._send_single_request(request)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_client.py", line 1730, in _send_single_request
+    response = await transport.handle_async_request(request)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_transports/default.py", line 393, in handle_async_request
+    with map_httpcore_exceptions():
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+
+httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:997)
+
+
+The above exception was the direct cause of the following exception:
+
+
+Traceback (most recent call last):
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/autogen_agentchat/teams/_group_chat/_chat_agent_container.py", line 84, in handle_request
+    async for msg in self._agent.on_messages_stream(self._message_buffer, ctx.cancellation_token):
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/autogen_agentchat/agents/_assistant_agent.py", line 953, in on_messages_stream
+    async for inference_output in self._call_llm(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/autogen_agentchat/agents/_assistant_agent.py", line 1107, in _call_llm
+    model_result = await model_client.create(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/autogen_ext/models/openai/_openai_client.py", line 676, in create
+    result: Union[ParsedChatCompletion[BaseModel], ChatCompletion] = await future
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/openai/resources/chat/completions/completions.py", line 2454, in create
+    return await self._post(
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1791, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1558, in request
+    raise APIConnectionError(request=request) from err
+
+openai.APIConnectionError: Connection error.
+
+2025-07-24 16:03:16,497 | agent_conversation | INFO | Creating fallback slides...
+2025-07-24 16:05:10,746 | agent_conversation | INFO | 🚀 Starting slide generation session: 1cabebbb-b9e0-4566-bb6a-a9a5f9e765e9
+2025-07-24 16:05:10,746 | agent_conversation | INFO | 📚 Course: UX Research Methodologies
+2025-07-24 16:05:10,746 | agent_conversation | INFO | 🎬 Initiating multi-agent conversation...
+2025-07-24 16:05:12,739 | agent_conversation | ERROR | ❌ Slide generation failed: APIConnectionError: Connection error.
+Traceback:
+Traceback (most recent call last):
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_transports/default.py", line 394, in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection_pool.py", line 256, in handle_async_request
+    raise exc from None
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection_pool.py", line 236, in handle_async_request
+    response = await connection.handle_async_request(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection.py", line 101, in handle_async_request
+    raise exc
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection.py", line 78, in handle_async_request
+    stream = await self._connect(request)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_async/connection.py", line 156, in _connect
+    stream = await stream.start_tls(**kwargs)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_backends/anyio.py", line 67, in start_tls
+    with map_exceptions(exc_map):
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+
+httpcore.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:997)
+
+
+The above exception was the direct cause of the following exception:
+
+
+Traceback (most recent call last):
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1526, in request
+    response = await self._client.send(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_client.py", line 1629, in send
+    response = await self._send_handling_auth(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_client.py", line 1657, in _send_handling_auth
+    response = await self._send_handling_redirects(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_client.py", line 1694, in _send_handling_redirects
+    response = await self._send_single_request(request)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_client.py", line 1730, in _send_single_request
+    response = await transport.handle_async_request(request)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_transports/default.py", line 393, in handle_async_request
+    with map_httpcore_exceptions():
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+
+httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:997)
+
+
+The above exception was the direct cause of the following exception:
+
+
+Traceback (most recent call last):
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/autogen_agentchat/teams/_group_chat/_chat_agent_container.py", line 84, in handle_request
+    async for msg in self._agent.on_messages_stream(self._message_buffer, ctx.cancellation_token):
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/autogen_agentchat/agents/_assistant_agent.py", line 953, in on_messages_stream
+    async for inference_output in self._call_llm(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/autogen_agentchat/agents/_assistant_agent.py", line 1107, in _call_llm
+    model_result = await model_client.create(
+
+  File "/Users/manthandesai/Library/Python/3.10/lib/python/site-packages/autogen_ext/models/openai/_openai_client.py", line 676, in create
+    result: Union[ParsedChatCompletion[BaseModel], ChatCompletion] = await future
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/openai/resources/chat/completions/completions.py", line 2454, in create
+    return await self._post(
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1791, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/openai/_base_client.py", line 1558, in request
+    raise APIConnectionError(request=request) from err
+
+openai.APIConnectionError: Connection error.
+
+2025-07-24 16:05:12,740 | agent_conversation | INFO | Creating fallback slides...
+2025-07-24 16:08:19,663 | agent_conversation | INFO | 🚀 Starting slide generation session: b978d6c0-d064-4762-8b93-f7d24f0dc456
+2025-07-24 16:08:19,663 | agent_conversation | INFO | 📚 Course: UX Research Methodologies
+2025-07-24 16:08:19,664 | agent_conversation | INFO | 🎬 Initiating multi-agent conversation...
+2025-07-24 16:13:16,461 | agent_conversation | INFO | 🎉 Slide generation completed! Generated 0 slides
+2025-07-24 16:23:15,035 | agent_conversation | INFO | 🚀 Starting slide generation session: f7483b35-ba1a-4b57-b327-d24df62820d6
+2025-07-24 16:23:15,036 | agent_conversation | INFO | 📚 Course: UX Research Methodologies
+2025-07-24 16:23:15,036 | agent_conversation | INFO | 🎬 Initiating multi-agent conversation...
+2025-07-24 16:28:56,009 | agent_conversation | INFO | 📝 Step 1: user (user)
+2025-07-24 16:28:56,010 | agent_conversation | INFO | 👋 user joined the conversation
+2025-07-24 16:28:56,010 | agent_conversation | INFO | 📝 Step 2: ContentAnalyzer (Content Analysis Expert)
+2025-07-24 16:28:56,010 | agent_conversation | INFO | 👋 ContentAnalyzer joined the conversation
+2025-07-24 16:28:56,011 | agent_conversation | INFO | 📝 Step 3: TemplateSelector (Template Selection Specialist)
+2025-07-24 16:28:56,012 | agent_conversation | INFO | 👋 TemplateSelector joined the conversation
+2025-07-24 16:28:56,012 | agent_conversation | INFO | 📝 Step 4: ContentGenerator (Educational Content Creator)
+2025-07-24 16:28:56,012 | agent_conversation | INFO | 👋 ContentGenerator joined the conversation
+2025-07-24 16:28:56,012 | agent_conversation | INFO | 📝 Step 5: ImagePromptSpecialist (Image Prompt Expert)
+2025-07-24 16:28:56,012 | agent_conversation | INFO | 👋 ImagePromptSpecialist joined the conversation
+2025-07-24 16:28:56,012 | agent_conversation | INFO | 📝 Step 6: LayoutDesigner (Layout Design Expert)
+2025-07-24 16:28:56,012 | agent_conversation | INFO | 👋 LayoutDesigner joined the conversation
+2025-07-24 16:28:56,012 | agent_conversation | INFO | 📝 Step 7: QualityAssurer (Quality Assurance Specialist)
+2025-07-24 16:28:56,012 | agent_conversation | INFO | 👋 QualityAssurer joined the conversation
+2025-07-24 16:28:56,012 | agent_conversation | INFO | ✅ QualityAssurer completed assessment with recommendations
+2025-07-24 16:28:56,012 | agent_conversation | INFO | 📝 Step 8: ContentAnalyzer (Content Analysis Expert)
+2025-07-24 16:28:56,013 | agent_conversation | INFO | 📝 Step 9: TemplateSelector (Template Selection Specialist)
+2025-07-24 16:28:56,013 | agent_conversation | INFO | 📝 Step 10: ContentGenerator (Educational Content Creator)
+2025-07-24 16:28:56,013 | agent_conversation | INFO | 📝 Step 11: ImagePromptSpecialist (Image Prompt Expert)
+2025-07-24 16:28:56,013 | agent_conversation | INFO | 📝 Step 12: LayoutDesigner (Layout Design Expert)
+2025-07-24 16:28:56,013 | agent_conversation | INFO | 📝 Step 13: QualityAssurer (Quality Assurance Specialist)
+2025-07-24 16:28:56,013 | agent_conversation | INFO | ✅ QualityAssurer completed assessment with recommendations
+2025-07-24 16:28:56,013 | agent_conversation | INFO | 📝 Step 14: ContentAnalyzer (Content Analysis Expert)
+2025-07-24 16:28:56,014 | agent_conversation | INFO | 🔍 ContentAnalyzer extracted 6 content segments
+2025-07-24 16:28:56,014 | agent_conversation | INFO | 📝 Step 15: TemplateSelector (Template Selection Specialist)
+2025-07-24 16:28:56,014 | agent_conversation | INFO | 📝 Step 16: ContentGenerator (Educational Content Creator)
+2025-07-24 16:28:56,014 | agent_conversation | INFO | 📝 Step 17: ImagePromptSpecialist (Image Prompt Expert)
+2025-07-24 16:28:56,014 | agent_conversation | INFO | 📝 Step 18: LayoutDesigner (Layout Design Expert)
+2025-07-24 16:28:56,014 | agent_conversation | INFO | 📝 Step 19: QualityAssurer (Quality Assurance Specialist)
+2025-07-24 16:28:56,014 | agent_conversation | INFO | ✅ QualityAssurer completed assessment with recommendations
+2025-07-24 16:28:56,015 | agent_conversation | INFO | 📝 Step 20: ContentAnalyzer (Content Analysis Expert)
+2025-07-24 16:28:56,015 | agent_conversation | INFO | Compiled 6 slides from agent decisions
+2025-07-24 16:28:56,015 | agent_conversation | INFO | 🎉 Slide generation completed! Generated 6 slides
+2025-07-25 17:55:31,843 | agent_conversation | INFO | 🚀 Starting slide generation session: cd9e3b23-cd5f-43f5-8f89-816f9a24312a
+2025-07-25 17:55:31,844 | agent_conversation | INFO | 📚 Course: UX Research Methodologies
+2025-07-25 17:55:31,844 | agent_conversation | INFO | 🎬 Initiating multi-agent conversation...
+2025-07-25 18:03:22,441 | agent_conversation | INFO | 📝 Step 1: user (user)
+2025-07-25 18:03:22,444 | agent_conversation | INFO | 👋 user joined the conversation
+2025-07-25 18:03:22,445 | agent_conversation | INFO | 📝 Step 2: ContentAnalyzer (Content Analysis Expert)
+2025-07-25 18:03:22,446 | agent_conversation | INFO | 👋 ContentAnalyzer joined the conversation
+2025-07-25 18:03:22,446 | agent_conversation | INFO | 🔍 ContentAnalyzer extracted 12 content segments
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 📝 Step 3: TemplateSelector (Template Selection Specialist)
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 👋 TemplateSelector joined the conversation
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 🎨 TemplateSelector provided 12 template selections
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 📝 Step 4: ContentGenerator (Educational Content Creator)
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 👋 ContentGenerator joined the conversation
+2025-07-25 18:03:22,447 | agent_conversation | INFO | ✍️ ContentGenerator created content for 12 slides
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 📝 Step 5: ImagePromptSpecialist (Image Prompt Expert)
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 👋 ImagePromptSpecialist joined the conversation
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 🖼️ ImagePromptSpecialist generated 6 image prompts
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 📝 Step 6: LayoutDesigner (Layout Design Expert)
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 👋 LayoutDesigner joined the conversation
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 📐 LayoutDesigner provided 12 layout designs
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 📝 Step 7: QualityAssurer (Quality Assurance Specialist)
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 👋 QualityAssurer joined the conversation
+2025-07-25 18:03:22,447 | agent_conversation | INFO | ✅ QualityAssurer completed assessment with recommendations
+2025-07-25 18:03:22,447 | agent_conversation | INFO | 📝 Step 8: ContentAnalyzer (Content Analysis Expert)
+2025-07-25 18:03:22,448 | agent_conversation | INFO | 📝 Step 9: TemplateSelector (Template Selection Specialist)
+2025-07-25 18:03:22,448 | agent_conversation | INFO | 📝 Step 10: ContentGenerator (Educational Content Creator)
+2025-07-25 18:03:22,449 | agent_conversation | INFO | 📝 Step 11: ImagePromptSpecialist (Image Prompt Expert)
+2025-07-25 18:03:22,449 | agent_conversation | INFO | 📝 Step 12: LayoutDesigner (Layout Design Expert)
+2025-07-25 18:03:22,449 | agent_conversation | INFO | 📝 Step 13: QualityAssurer (Quality Assurance Specialist)
+2025-07-25 18:03:22,450 | agent_conversation | INFO | ✅ QualityAssurer completed assessment with recommendations
+2025-07-25 18:03:22,450 | agent_conversation | INFO | 📝 Step 14: ContentAnalyzer (Content Analysis Expert)
+2025-07-25 18:03:22,450 | agent_conversation | INFO | 📝 Step 15: TemplateSelector (Template Selection Specialist)
+2025-07-25 18:03:22,450 | agent_conversation | INFO | 📝 Step 16: ContentGenerator (Educational Content Creator)
+2025-07-25 18:03:22,450 | agent_conversation | INFO | 📝 Step 17: ImagePromptSpecialist (Image Prompt Expert)
+2025-07-25 18:03:22,451 | agent_conversation | INFO | 📝 Step 18: LayoutDesigner (Layout Design Expert)
+2025-07-25 18:03:22,451 | agent_conversation | INFO | 📝 Step 19: QualityAssurer (Quality Assurance Specialist)
+2025-07-25 18:03:22,451 | agent_conversation | INFO | ✅ QualityAssurer completed assessment with recommendations
+2025-07-25 18:03:22,451 | agent_conversation | INFO | 📝 Step 20: ContentAnalyzer (Content Analysis Expert)
+2025-07-25 18:03:22,451 | agent_conversation | INFO | 🖼️ Generating image with DALL-E 3: Create an educational illustration showing a diver...
+2025-07-25 18:03:39,129 | agent_conversation | INFO | ✅ Image generated successfully: https://oaidalleapiprodscus.blob.core.windows.net/...
+2025-07-25 18:03:39,129 | agent_conversation | INFO | 🖼️ Generating image with DALL-E 3: Create an abstract geometric illustration linking ...
+2025-07-25 18:03:59,445 | agent_conversation | INFO | ✅ Image generated successfully: https://oaidalleapiprodscus.blob.core.windows.net/...
+2025-07-25 18:03:59,445 | agent_conversation | INFO | 🖼️ Generating image with DALL-E 3: Create a depiction of dilemma scales with ethical ...
+2025-07-25 18:04:15,944 | agent_conversation | INFO | ✅ Image generated successfully: https://oaidalleapiprodscus.blob.core.windows.net/...
+2025-07-25 18:04:15,944 | agent_conversation | INFO | 🖼️ Generating image with DALL-E 3: Create an illustration of varied qualitative resea...
+2025-07-25 18:04:50,835 | agent_conversation | INFO | ✅ Image generated successfully: https://oaidalleapiprodscus.blob.core.windows.net/...
+2025-07-25 18:04:50,836 | agent_conversation | INFO | 🖼️ Generating image with DALL-E 3: Create an educational scene of researchers observi...
+2025-07-25 18:05:04,518 | agent_conversation | INFO | ✅ Image generated successfully: https://oaidalleapiprodscus.blob.core.windows.net/...
+2025-07-25 18:05:04,519 | agent_conversation | INFO | 🖼️ Generating image with DALL-E 3: Create an engaging illustration of students partic...
+2025-07-25 18:05:19,290 | agent_conversation | INFO | ✅ Image generated successfully: https://oaidalleapiprodscus.blob.core.windows.net/...
+2025-07-25 18:05:19,290 | agent_conversation | INFO | Compiled 12 slides from agent decisions
+2025-07-25 18:05:19,290 | agent_conversation | INFO | 🎉 Slide generation completed! Generated 12 slides
+2025-07-25 18:29:18,488 | agent_conversation | INFO | 🚀 Starting slide generation session: cad0321b-7a0b-4075-a4a6-12a0e77b3029
+2025-07-25 18:29:18,489 | agent_conversation | INFO | 📚 Course: UX Research Methodologies
+2025-07-25 18:29:18,489 | agent_conversation | INFO | 🎬 Initiating multi-agent conversation...
+2025-07-25 18:34:06,467 | agent_conversation | INFO | 📝 Step 1: user (user)
+2025-07-25 18:34:06,469 | agent_conversation | INFO | 👋 user joined the conversation
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 📝 Step 2: ContentAnalyzer (Content Analysis Expert)
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 👋 ContentAnalyzer joined the conversation
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 🔍 ContentAnalyzer extracted 13 content segments
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 📝 Step 3: TemplateSelector (Template Selection Specialist)
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 👋 TemplateSelector joined the conversation
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 🎨 TemplateSelector provided 13 template selections
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 📝 Step 4: ContentGenerator (Educational Content Creator)
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 👋 ContentGenerator joined the conversation
+2025-07-25 18:34:06,470 | agent_conversation | INFO | ✍️ ContentGenerator created content for 13 slides
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 📝 Step 5: ImagePromptSpecialist (Image Prompt Expert)
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 👋 ImagePromptSpecialist joined the conversation
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 🖼️ ImagePromptSpecialist generated 8 image prompts
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 📝 Step 6: LayoutDesigner (Layout Design Expert)
+2025-07-25 18:34:06,470 | agent_conversation | INFO | 👋 LayoutDesigner joined the conversation
+2025-07-25 18:34:06,471 | agent_conversation | INFO | 📐 LayoutDesigner provided 13 layout designs
+2025-07-25 18:34:06,471 | agent_conversation | INFO | 📝 Step 7: QualityAssurer (Quality Assurance Specialist)
+2025-07-25 18:34:06,471 | agent_conversation | INFO | 👋 QualityAssurer joined the conversation
+2025-07-25 18:34:06,471 | agent_conversation | INFO | ✅ QualityAssurer completed assessment with recommendations
+2025-07-25 18:34:06,471 | agent_conversation | INFO | 📝 Step 8: ContentAnalyzer (Content Analysis Expert)
+2025-07-25 18:34:06,471 | agent_conversation | INFO | 📝 Step 9: TemplateSelector (Template Selection Specialist)
+2025-07-25 18:34:06,471 | agent_conversation | INFO | 📝 Step 10: ContentGenerator (Educational Content Creator)
+2025-07-25 18:34:06,471 | agent_conversation | INFO | 📝 Step 11: ImagePromptSpecialist (Image Prompt Expert)
+2025-07-25 18:34:06,471 | agent_conversation | INFO | 🖼️ ImagePromptSpecialist generated 8 image prompts
+2025-07-25 18:34:06,471 | agent_conversation | INFO | 📝 Step 12: LayoutDesigner (Layout Design Expert)
+2025-07-25 18:34:06,471 | agent_conversation | INFO | 📝 Step 13: QualityAssurer (Quality Assurance Specialist)
+2025-07-25 18:34:06,471 | agent_conversation | INFO | ✅ QualityAssurer completed assessment with recommendations
+2025-07-25 18:34:06,471 | agent_conversation | INFO | 📝 Step 14: ContentAnalyzer (Content Analysis Expert)
+2025-07-25 18:34:06,471 | agent_conversation | INFO | 📝 Step 15: TemplateSelector (Template Selection Specialist)
+2025-07-25 18:34:06,472 | agent_conversation | INFO | 📝 Step 16: ContentGenerator (Educational Content Creator)
+2025-07-25 18:34:06,472 | agent_conversation | INFO | 📝 Step 17: ImagePromptSpecialist (Image Prompt Expert)
+2025-07-25 18:34:06,472 | agent_conversation | INFO | 📝 Step 18: LayoutDesigner (Layout Design Expert)
+2025-07-25 18:34:06,472 | agent_conversation | INFO | 📝 Step 19: QualityAssurer (Quality Assurance Specialist)
+2025-07-25 18:34:06,472 | agent_conversation | INFO | 📝 Step 20: ContentAnalyzer (Content Analysis Expert)
+2025-07-25 18:34:06,472 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Create an educational title slide image illustrati...
+2025-07-25 18:34:06,821 | agent_conversation | ERROR | ❌ Error generating image: Error code: 400 - {'error': {'message': "Invalid value: 'standard'. Supported values are: 'low', 'medium', 'high', and 'auto'.", 'type': 'invalid_request_error', 'param': 'quality', 'code': 'invalid_value'}}
+2025-07-25 18:34:06,822 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Illustrate a concept map of UX research types. Inc...
+2025-07-25 18:34:07,122 | agent_conversation | ERROR | ❌ Error generating image: Error code: 400 - {'error': {'message': "Invalid value: 'standard'. Supported values are: 'low', 'medium', 'high', and 'auto'.", 'type': 'invalid_request_error', 'param': 'quality', 'code': 'invalid_value'}}
+2025-07-25 18:34:07,123 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Create an image depicting the ethical aspects of U...
+2025-07-25 18:34:07,417 | agent_conversation | ERROR | ❌ Error generating image: Error code: 400 - {'error': {'message': "Invalid value: 'standard'. Supported values are: 'low', 'medium', 'high', and 'auto'.", 'type': 'invalid_request_error', 'param': 'quality', 'code': 'invalid_value'}}
+2025-07-25 18:34:07,417 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Create a grid of illustrations showcasing differen...
+2025-07-25 18:34:07,718 | agent_conversation | ERROR | ❌ Error generating image: Error code: 400 - {'error': {'message': "Invalid value: 'standard'. Supported values are: 'low', 'medium', 'high', and 'auto'.", 'type': 'invalid_request_error', 'param': 'quality', 'code': 'invalid_value'}}
+2025-07-25 18:34:07,719 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Illustrate a user interview setting. Show a cozy, ...
+2025-07-25 18:34:07,997 | agent_conversation | ERROR | ❌ Error generating image: Error code: 400 - {'error': {'message': "Invalid value: 'standard'. Supported values are: 'low', 'medium', 'high', and 'auto'.", 'type': 'invalid_request_error', 'param': 'quality', 'code': 'invalid_value'}}
+2025-07-25 18:34:07,997 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Create an infographic-style image depicting key we...
+2025-07-25 18:34:08,278 | agent_conversation | ERROR | ❌ Error generating image: Error code: 400 - {'error': {'message': "Invalid value: 'standard'. Supported values are: 'low', 'medium', 'high', and 'auto'.", 'type': 'invalid_request_error', 'param': 'quality', 'code': 'invalid_value'}}
+2025-07-25 18:34:08,278 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Illustrate an A/B testing experiment with a bar ch...
+2025-07-25 18:34:08,591 | agent_conversation | ERROR | ❌ Error generating image: Error code: 400 - {'error': {'message': "Invalid value: 'standard'. Supported values are: 'low', 'medium', 'high', and 'auto'.", 'type': 'invalid_request_error', 'param': 'quality', 'code': 'invalid_value'}}
+2025-07-25 18:34:08,591 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Show a visual comparison of research insights turn...
+2025-07-25 18:34:08,930 | agent_conversation | ERROR | ❌ Error generating image: Error code: 400 - {'error': {'message': "Invalid value: 'standard'. Supported values are: 'low', 'medium', 'high', and 'auto'.", 'type': 'invalid_request_error', 'param': 'quality', 'code': 'invalid_value'}}
+2025-07-25 18:34:08,930 | agent_conversation | INFO | Compiled 13 slides from agent decisions
+2025-07-25 18:34:08,930 | agent_conversation | INFO | 🎉 Slide generation completed! Generated 13 slides
+2025-07-25 18:51:14,519 | agent_conversation | INFO | 🚀 Starting slide generation session: 8877cd75-68c7-4317-839f-442ba8b36b03
+2025-07-25 18:51:14,519 | agent_conversation | INFO | 📚 Course: UX Research Methodologies
+2025-07-25 18:51:14,520 | agent_conversation | INFO | 🎬 Initiating multi-agent conversation...
+2025-07-25 18:55:50,723 | agent_conversation | INFO | 📝 Step 1: user (user)
+2025-07-25 18:55:50,724 | agent_conversation | INFO | 👋 user joined the conversation
+2025-07-25 18:55:50,724 | agent_conversation | INFO | 📝 Step 2: ContentAnalyzer (Content Analysis Expert)
+2025-07-25 18:55:50,724 | agent_conversation | INFO | 👋 ContentAnalyzer joined the conversation
+2025-07-25 18:55:50,725 | agent_conversation | INFO | 🔍 ContentAnalyzer extracted 7 content segments
+2025-07-25 18:55:50,725 | agent_conversation | INFO | 📝 Step 3: TemplateSelector (Template Selection Specialist)
+2025-07-25 18:55:50,725 | agent_conversation | INFO | 👋 TemplateSelector joined the conversation
+2025-07-25 18:55:50,725 | agent_conversation | INFO | 📝 Step 4: ContentGenerator (Educational Content Creator)
+2025-07-25 18:55:50,725 | agent_conversation | INFO | 👋 ContentGenerator joined the conversation
+2025-07-25 18:55:50,725 | agent_conversation | INFO | 📝 Step 5: ImagePromptSpecialist (Image Prompt Expert)
+2025-07-25 18:55:50,725 | agent_conversation | INFO | 👋 ImagePromptSpecialist joined the conversation
+2025-07-25 18:55:50,726 | agent_conversation | INFO | 🖼️ ImagePromptSpecialist generated 6 image prompts
+2025-07-25 18:55:50,726 | agent_conversation | INFO | 📝 Step 6: LayoutDesigner (Layout Design Expert)
+2025-07-25 18:55:50,726 | agent_conversation | INFO | 👋 LayoutDesigner joined the conversation
+2025-07-25 18:55:50,726 | agent_conversation | INFO | 📝 Step 7: QualityAssurer (Quality Assurance Specialist)
+2025-07-25 18:55:50,726 | agent_conversation | INFO | 👋 QualityAssurer joined the conversation
+2025-07-25 18:55:50,726 | agent_conversation | INFO | ✅ QualityAssurer completed assessment with recommendations
+2025-07-25 18:55:50,726 | agent_conversation | INFO | 📝 Step 8: ContentAnalyzer (Content Analysis Expert)
+2025-07-25 18:55:50,726 | agent_conversation | INFO | 📝 Step 9: TemplateSelector (Template Selection Specialist)
+2025-07-25 18:55:50,726 | agent_conversation | INFO | 📝 Step 10: ContentGenerator (Educational Content Creator)
+2025-07-25 18:55:50,727 | agent_conversation | INFO | ✍️ ContentGenerator created content for 7 slides
+2025-07-25 18:55:50,727 | agent_conversation | INFO | 📝 Step 11: ImagePromptSpecialist (Image Prompt Expert)
+2025-07-25 18:55:50,727 | agent_conversation | INFO | 📝 Step 12: LayoutDesigner (Layout Design Expert)
+2025-07-25 18:55:50,727 | agent_conversation | INFO | 📝 Step 13: QualityAssurer (Quality Assurance Specialist)
+2025-07-25 18:55:50,727 | agent_conversation | INFO | 📝 Step 14: ContentAnalyzer (Content Analysis Expert)
+2025-07-25 18:55:50,727 | agent_conversation | INFO | 📝 Step 15: TemplateSelector (Template Selection Specialist)
+2025-07-25 18:55:50,727 | agent_conversation | INFO | 📝 Step 16: ContentGenerator (Educational Content Creator)
+2025-07-25 18:55:50,727 | agent_conversation | INFO | 📝 Step 17: ImagePromptSpecialist (Image Prompt Expert)
+2025-07-25 18:55:50,727 | agent_conversation | INFO | 📝 Step 18: LayoutDesigner (Layout Design Expert)
+2025-07-25 18:55:50,728 | agent_conversation | INFO | 📝 Step 19: QualityAssurer (Quality Assurance Specialist)
+2025-07-25 18:55:50,728 | agent_conversation | INFO | 📝 Step 20: ContentAnalyzer (Content Analysis Expert)
+2025-07-25 18:55:50,728 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Create a full background image of a workspace clut...
+2025-07-25 18:56:45,072 | agent_conversation | ERROR | ❌ Error generating image: 'NoneType' object is not subscriptable
+2025-07-25 18:56:45,073 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Illustrate various UX research methods such as use...
+2025-07-25 18:57:19,202 | agent_conversation | ERROR | ❌ Error generating image: 'NoneType' object is not subscriptable
+2025-07-25 18:57:19,203 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Design a three-step flowchart to represent the pro...
+2025-07-25 18:57:55,471 | agent_conversation | ERROR | ❌ Error generating image: 'NoneType' object is not subscriptable
+2025-07-25 18:57:55,472 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Create a set of illustrative icons representing qu...
+2025-07-25 18:58:41,780 | agent_conversation | ERROR | ❌ Error generating image: 'NoneType' object is not subscriptable
+2025-07-25 18:58:41,780 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Design a bar chart to visually compare quantitativ...
+2025-07-25 18:59:18,141 | agent_conversation | ERROR | ❌ Error generating image: 'NoneType' object is not subscriptable
+2025-07-25 18:59:18,141 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Create a graphic featuring a series of icons depic...
+2025-07-25 19:00:01,730 | agent_conversation | ERROR | ❌ Error generating image: 'NoneType' object is not subscriptable
+2025-07-25 19:00:01,731 | agent_conversation | INFO | Compiled 7 slides from agent decisions
+2025-07-25 19:00:01,731 | agent_conversation | INFO | 🎉 Slide generation completed! Generated 7 slides
+2025-07-25 19:18:46,713 | agent_conversation | INFO | 🚀 Starting slide generation session: test-session
+2025-07-25 19:18:46,713 | agent_conversation | INFO | 📚 Course: UX Research Methods
+2025-07-25 19:18:46,713 | agent_conversation | INFO | Creating fallback slides...
+2025-07-25 19:18:46,713 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Educational illustration for UX Research Methods: ...
+2025-07-25 19:19:28,831 | agent_conversation | INFO | ✅ Image generated successfully as base64 data (length: 1910960)
+2025-07-25 19:19:28,833 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Educational illustration for Learning Module 1: In...
+2025-07-25 19:20:22,607 | agent_conversation | INFO | ✅ Image generated successfully as base64 data (length: 2062020)
+2025-07-25 19:20:22,610 | agent_conversation | INFO | 🖼️ Generating image with gpt-image-1: Educational illustration for Learning Module 2: Qu...
+2025-07-25 19:20:59,194 | agent_conversation | INFO | ✅ Image generated successfully as base64 data (length: 2442972)
+2025-07-25 19:20:59,195 | agent_conversation | INFO | 🎉 Slide generation completed! Generated 5 slides
