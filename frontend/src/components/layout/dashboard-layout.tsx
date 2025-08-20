@@ -50,12 +50,12 @@ export function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar */}
       <Sidebar />
 
       {/* Main Content */}
-      <div className="ml-64 flex flex-col min-h-screen">
+      <div className="ml-64 flex flex-col h-screen overflow-hidden">
         {/* Header */}
         <PageHeader 
           title={title}
@@ -67,7 +67,7 @@ export function DashboardLayout({
         />
 
         {/* Content */}
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-6 flex flex-col overflow-hidden">
           {children}
         </main>
       </div>

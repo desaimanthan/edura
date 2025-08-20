@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 from bson import ObjectId
 
@@ -177,10 +177,53 @@ class Course(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     name: str
     description: Optional[str] = None
-    curriculum_content: Optional[str] = None  # Markdown text
-    pedagogy_content: Optional[str] = None    # Markdown text
-    created_by: PyObjectId  # User ID
-    status: str = "draft"  # draft, curriculum_complete, pedagogy_complete, complete
+    user_id: PyObjectId
+    structure: dict = {}  # Course outline, chapters, files
+    status: str = "creating"  # creating, in_progress, completed
+    workflow_step: str = "course_naming"  # Track current step in workflow
+    # Legacy curriculum fields (for backward compatibility)
+    curriculum_r2_key: Optional[str] = None  # R2 storage key for curriculum
+    curriculum_public_url: Optional[str] = None  # Public URL for curriculum
+    curriculum_source: Optional[str] = None  # "generated" | "uploaded"
+    curriculum_version: int = 1  # Current curriculum version
+    curriculum_updated_at: Optional[datetime] = None  # When curriculum was last updated
+    # Research fields
+    research_r2_key: Optional[str] = None  # R2 storage key for research
+    research_public_url: Optional[str] = None  # Public URL for research
+    research_updated_at: Optional[datetime] = None  # When research was last updated
+    # New course design fields (curriculum + pedagogy + assessments)
+    course_design_r2_key: Optional[str] = None  # R2 storage key for course design
+    course_design_public_url: Optional[str] = None  # Public URL for course design
+    course_design_source: Optional[str] = None  # "generated" | "uploaded" | "uploaded_processed"
+    course_design_version: int = 1  # Current course design version
+    course_design_updated_at: Optional[datetime] = None  # When course design was last updated
+    has_pedagogy: bool = False  # Whether course design includes pedagogy
+    has_assessments: bool = False  # Whether course design includes assessments
+    design_components: list[str] = []  # List of components: ["curriculum", "pedagogy", "assessments"]
+    # New enhanced course creation fields
+    learning_outcomes: list[str] = []  # What you'll learn items
+    prerequisites: list[str] = []  # Prerequisites items
+    # Multi-size cover image fields
+    cover_image_large_r2_key: Optional[str] = None  # R2 key for large cover image (1536x1024)
+    cover_image_large_public_url: Optional[str] = None  # Public URL for large cover image
+    cover_image_medium_r2_key: Optional[str] = None  # R2 key for medium cover image (768x512)
+    cover_image_medium_public_url: Optional[str] = None  # Public URL for medium cover image
+    cover_image_small_r2_key: Optional[str] = None  # R2 key for small cover image (384x256)
+    cover_image_small_public_url: Optional[str] = None  # Public URL for small cover image
+    # Legacy single image fields (for backward compatibility)
+    cover_image_r2_key: Optional[str] = None  # R2 key for cover image (deprecated, use large)
+    cover_image_public_url: Optional[str] = None  # Public URL for cover image (deprecated, use large)
+    cover_image_metadata: dict = {}  # Image metadata (size, format, quality, etc.)
+    cover_image_updated_at: Optional[datetime] = None  # When cover image was last updated
+    content_generated_at: Optional[datetime] = None  # When auto-content was generated
+    auto_generated_fields: list[str] = []  # Track which fields were auto-generated
+    # Content structure fields (replaces CourseStructureChecklist)
+    content_structure: dict = {}  # Parsed structure from course design (modules, chapters, materials)
+    structure_approved: bool = False  # User approval of the structure
+    structure_approved_at: Optional[datetime] = None  # When structure was approved
+    total_content_items: int = 0  # Total number of content materials
+    completed_content_items: int = 0  # Number of completed content materials
+    structure_generated_at: Optional[datetime] = None  # When structure was generated
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -193,21 +236,57 @@ class CourseCreate(BaseModel):
     name: str
     description: Optional[str] = None
 
-class CourseUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    curriculum_content: Optional[str] = None
-    pedagogy_content: Optional[str] = None
-    status: Optional[str] = None
-
 class CourseResponse(BaseModel):
-    id: str
+    id: str = Field(alias="_id")
     name: str
     description: Optional[str] = None
-    curriculum_content: Optional[str] = None
-    pedagogy_content: Optional[str] = None
-    created_by: str
+    user_id: str
+    structure: dict = {}
     status: str
+    workflow_step: str
+    # Legacy curriculum fields (for backward compatibility)
+    curriculum_r2_key: Optional[str] = None
+    curriculum_public_url: Optional[str] = None
+    curriculum_source: Optional[str] = None
+    curriculum_version: int = 1
+    curriculum_updated_at: Optional[datetime] = None
+    # Research fields
+    research_r2_key: Optional[str] = None
+    research_public_url: Optional[str] = None
+    research_updated_at: Optional[datetime] = None
+    # New course design fields (curriculum + pedagogy + assessments)
+    course_design_r2_key: Optional[str] = None
+    course_design_public_url: Optional[str] = None
+    course_design_source: Optional[str] = None
+    course_design_version: int = 1
+    course_design_updated_at: Optional[datetime] = None
+    has_pedagogy: bool = False
+    has_assessments: bool = False
+    design_components: list[str] = []
+    # New enhanced course creation fields
+    learning_outcomes: list[str] = []
+    prerequisites: list[str] = []
+    # Multi-size cover image fields
+    cover_image_large_r2_key: Optional[str] = None
+    cover_image_large_public_url: Optional[str] = None
+    cover_image_medium_r2_key: Optional[str] = None
+    cover_image_medium_public_url: Optional[str] = None
+    cover_image_small_r2_key: Optional[str] = None
+    cover_image_small_public_url: Optional[str] = None
+    # Legacy single image fields (for backward compatibility)
+    cover_image_r2_key: Optional[str] = None
+    cover_image_public_url: Optional[str] = None
+    cover_image_metadata: dict = {}
+    cover_image_updated_at: Optional[datetime] = None
+    content_generated_at: Optional[datetime] = None
+    auto_generated_fields: list[str] = []
+    # Content structure fields (replaces CourseStructureChecklist)
+    content_structure: dict = {}  # Parsed structure from course design (modules, chapters, materials)
+    structure_approved: bool = False  # User approval of the structure
+    structure_approved_at: Optional[datetime] = None  # When structure was approved
+    total_content_items: int = 0  # Total number of content materials
+    completed_content_items: int = 0  # Number of completed content materials
+    structure_generated_at: Optional[datetime] = None  # When structure was generated
     created_at: datetime
     updated_at: datetime
 
@@ -215,154 +294,117 @@ class CourseResponse(BaseModel):
         populate_by_name = True
         json_encoders = {ObjectId: str}
 
-class ContentGenerationRequest(BaseModel):
-    course_name: str
-    curriculum_content: Optional[str] = None  # For pedagogy generation
-
-class ContentEnhancementRequest(BaseModel):
-    content: str
-    content_type: str  # "curriculum" or "pedagogy"
-
-class AIResponse(BaseModel):
-    content: str
-    suggestions: Optional[list] = None  # For enhancement responses
-
-# Research Report Models
-class ResearchReport(BaseModel):
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-    course_id: PyObjectId  # FK to Course
-    task_id: str  # OpenAI o3-deep-research task ID
-    status: str = "pending"  # pending, processing, completed, failed
-    markdown_report: Optional[str] = None  # Final research output
-    input_data: dict = {}  # Original course data used for research
-    error_message: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    completed_at: Optional[datetime] = None
-
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
-
-class ResearchReportCreate(BaseModel):
-    course_id: str
-    task_id: str
-    input_data: dict = {}
-
-class ResearchStatusResponse(BaseModel):
-    id: str
-    course_id: str
-    task_id: str
-    status: str
-    progress: Optional[str] = None
-    markdown_report: Optional[str] = None
-    error_message: Optional[str] = None
-    created_at: datetime
-    completed_at: Optional[datetime] = None
-
-    class Config:
-        populate_by_name = True
-        json_encoders = {ObjectId: str}
-
-class ResearchGenerationRequest(BaseModel):
-    course_name: str
-    description: Optional[str] = None
-    curriculum_content: Optional[str] = None
-    pedagogy_content: Optional[str] = None
-
-# Slide Generation Models
-class SlideDeck(BaseModel):
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-    course_id: PyObjectId  # FK to Course
-    title: str
-    description: Optional[str] = None
-    status: str = "draft"  # draft, generating, completed, failed
-    total_slides: int = 0
-    created_by: PyObjectId  # User ID
-    generation_session_id: Optional[str] = None  # Link to generation session
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
-
-class Slide(BaseModel):
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-    deck_id: PyObjectId  # FK to SlideDeck
-    slide_number: int
-    title: str
-    content: dict = {}  # Flexible JSON structure for different slide types
-    template_type: str  # geometric_abstract, split_image_text, data_table, etc.
-    layout_config: dict = {}  # Position, size, styling information
-    images: list = []  # List of image objects
-    ai_generated: bool = True
-    agent_decisions: dict = {}  # Decisions made by agents for this slide
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
-
-class SlideImage(BaseModel):
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-    slide_id: PyObjectId
-    image_url: str  # Stored image URL
-    original_prompt: str  # The prompt used to generate the image
-    alt_text: str  # Accessibility text
-    position: dict = {}  # x, y, width, height in slide
-    generated_by_ai: bool = True
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
-
-class SlideGenerationSession(BaseModel):
+# Chat Message Models
+class ChatMessage(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     course_id: PyObjectId
-    deck_id: Optional[PyObjectId] = None
-    status: str = "in_progress"  # in_progress, completed, failed, cancelled
-    conversation_log: list = []  # Full agent conversation
-    agent_decisions: dict = {}  # Key decisions made by each agent
-    generation_metadata: dict = {}
-    websocket_clients: list = []  # Connected WebSocket clients
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    completed_at: Optional[datetime] = None
-
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
-
-class AgentDecision(BaseModel):
-    agent_name: str
-    agent_role: str
-    decision_type: str  # template_selection, content_creation, image_prompt, etc.
-    decision_data: dict
-    reasoning: str
-    slide_number: Optional[int] = None
+    user_id: PyObjectId
+    content: str
+    role: str  # "user", "assistant", "system"
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    message_index: int  # Order in conversation (0, 1, 2...)
+    metadata: dict = {}  # Function calls, tool usage, generated content refs
 
     class Config:
         populate_by_name = True
         arbitrary_types_allowed = True
         json_encoders = {ObjectId: str}
 
-# Response Models for API
-class SlideDeckResponse(BaseModel):
-    id: str
+class ChatMessageCreate(BaseModel):
+    content: str
+    context_hints: Optional[Dict[str, Any]] = None  # Frontend workflow context hints
+
+class ChatMessageResponse(BaseModel):
+    id: str = Field(alias="_id")
     course_id: str
+    user_id: str
+    content: str
+    role: str
+    timestamp: datetime
+    message_index: int
+    metadata: dict = {}
+
+    class Config:
+        populate_by_name = True
+        json_encoders = {ObjectId: str}
+
+# Chat Session Models
+class ChatSession(BaseModel):
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    course_id: PyObjectId
+    user_id: PyObjectId
+    context_summary: str = ""  # AI-generated summary of older messages
+    last_activity: datetime = Field(default_factory=datetime.utcnow)
+    total_messages: int = 0
+    context_window_start: int = 0  # Which message index to start full context from
+    summary_updated_at: Optional[datetime] = None  # When context summary was last updated
+
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
+class ChatSessionResponse(BaseModel):
+    id: str = Field(alias="_id")
+    course_id: str
+    user_id: str
+    context_summary: str
+    last_activity: datetime
+    total_messages: int
+    context_window_start: int
+    summary_updated_at: Optional[datetime] = None
+
+    class Config:
+        populate_by_name = True
+        json_encoders = {ObjectId: str}
+
+# Content Creation Models
+class ContentMaterial(BaseModel):
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    course_id: PyObjectId
+    module_number: int
+    chapter_number: int
+    material_type: str  # "slide", "quiz", "assessment", "module_quiz"
     title: str
     description: Optional[str] = None
+    content: Optional[str] = None  # Generated content (for slides) or JSON string (for assessments)
+    status: str = "pending"  # pending, generating, completed, approved, needs_revision
+    content_status: str = "not done"  # Track content generation status for next agent
+    slide_number: Optional[int] = None  # Slide number within the chapter (for slide materials)
+    # Assessment-specific fields
+    assessment_format: Optional[str] = None  # "multiple_choice", "true_false", "scenario_choice", "matching", etc.
+    assessment_data: Optional[Dict[str, Any]] = None  # Structured question data for assessments
+    question_difficulty: Optional[str] = None  # "beginner", "intermediate", "advanced"
+    learning_objective: Optional[str] = None  # Specific learning objective this material addresses
+    r2_key: Optional[str] = None
+    public_url: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
+class ContentMaterialResponse(BaseModel):
+    id: str = Field(alias="_id")
+    course_id: str
+    module_number: int
+    chapter_number: int
+    material_type: str
+    title: str
+    description: Optional[str] = None
+    content: Optional[str] = None
     status: str
-    total_slides: int
-    created_by: str
-    generation_session_id: Optional[str] = None
+    content_status: str = "not done"  # Track content generation status for next agent
+    slide_number: Optional[int] = None  # Slide number within the chapter (for slide materials)
+    # Assessment-specific fields
+    assessment_format: Optional[str] = None  # "multiple_choice", "true_false", "scenario_choice", "matching", etc.
+    assessment_data: Optional[Dict[str, Any]] = None  # Structured question data for assessments
+    question_difficulty: Optional[str] = None  # "beginner", "intermediate", "advanced"
+    learning_objective: Optional[str] = None  # Specific learning objective this material addresses
+    r2_key: Optional[str] = None
+    public_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -370,41 +412,85 @@ class SlideDeckResponse(BaseModel):
         populate_by_name = True
         json_encoders = {ObjectId: str}
 
-class SlideResponse(BaseModel):
-    id: str
-    deck_id: str
+class CourseStructureChecklist(BaseModel):
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    course_id: PyObjectId
+    structure: Dict[str, Any]  # Nested structure of modules/chapters/materials
+    total_items: int
+    completed_items: int = 0
+    status: str = "pending"  # pending, approved, in_progress, completed
+    user_approved: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    approved_at: Optional[datetime] = None
+
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
+class CourseStructureChecklistResponse(BaseModel):
+    id: str = Field(alias="_id")
+    course_id: str
+    structure: Dict[str, Any]
+    total_items: int
+    completed_items: int
+    status: str
+    user_approved: bool
+    created_at: datetime
+    approved_at: Optional[datetime] = None
+
+    class Config:
+        populate_by_name = True
+        json_encoders = {ObjectId: str}
+
+class SlideContent(BaseModel):
     slide_number: int
     title: str
-    content: dict
-    template_type: str
-    layout_config: dict
-    images: list
-    ai_generated: bool
-    agent_decisions: dict
-    created_at: datetime
-    updated_at: datetime
+    content_type: str  # "comprehensive", "interactive", "visual", "assessment"
+    content: str
+    learning_tips: Optional[str] = None  # Tips and reminders for students
+    self_check_questions: list[str] = []  # Questions for self-assessment
+    visual_elements: list[str] = []  # Descriptions of visual elements needed
+    key_takeaways: list[str] = []  # Essential points to remember
+
+    class Config:
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
+# Assessment Response Models
+class AssessmentResponse(BaseModel):
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    user_id: PyObjectId
+    course_id: PyObjectId
+    material_id: PyObjectId  # Reference to the ContentMaterial (assessment)
+    user_answer: Dict[str, Any]  # User's selected answer(s) - format depends on assessment type
+    is_correct: bool  # Whether the answer was correct
+    time_taken: Optional[int] = None  # Time taken to answer in seconds
+    attempt_number: int = 1  # Allow multiple attempts
+    feedback_shown: bool = False  # Whether feedback was displayed to user
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:
         populate_by_name = True
+        arbitrary_types_allowed = True
         json_encoders = {ObjectId: str}
 
-class SlideGenerationRequest(BaseModel):
-    course_id: str
-    title: Optional[str] = None
-    description: Optional[str] = None
-    template_preferences: Optional[dict] = None
+class AssessmentResponseCreate(BaseModel):
+    material_id: str
+    user_answer: Dict[str, Any]
+    time_taken: Optional[int] = None
 
-class SlideGenerationStatusResponse(BaseModel):
-    session_id: str
-    status: str
-    progress: Optional[int] = None
-    current_agent: Optional[str] = None
-    total_slides_generated: int = 0
-    conversation_messages: int = 0
-    error_message: Optional[str] = None
-    websocket_url: Optional[str] = None
+class AssessmentResponseResponse(BaseModel):
+    id: str = Field(alias="_id")
+    user_id: str
+    course_id: str
+    material_id: str
+    user_answer: Dict[str, Any]
+    is_correct: bool
+    time_taken: Optional[int] = None
+    attempt_number: int
+    feedback_shown: bool
     created_at: datetime
-    completed_at: Optional[datetime] = None
 
     class Config:
         populate_by_name = True

@@ -1,1 +1,1 @@
-# ProfessorAI Backend Application
+# Edura Backend Application

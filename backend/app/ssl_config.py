@@ -47,7 +47,3 @@ def create_httpx_client(verify: Optional[bool] = None) -> httpx.AsyncClient:
 def get_development_client() -> httpx.AsyncClient:
     """Get an HTTP client configured for development (SSL verification disabled)"""
     return httpx.AsyncClient(verify=False)
-
-def get_sync_development_client() -> httpx.Client:
-    """Get a synchronous HTTP client configured for development (SSL verification disabled)"""
-    return httpx.Client(verify=False)

@@ -1,15 +1,15 @@
-# ProfessorAI
+# Edura
 
 A full-stack educational platform with comprehensive authentication, role-based access control, and course management capabilities.
 
 ## 🚀 Overview
 
-ProfessorAI is a modern educational platform built with Next.js frontend and FastAPI backend, designed to facilitate online learning with robust user management and course administration features.
+Edura is a modern educational platform built with Next.js frontend and FastAPI backend, designed to facilitate online learning with robust user management and course administration features.
 
 ## 🏗️ Architecture
 
 ```
-ProfessorAI/
+Edura/
 ├── frontend/          # Next.js React application
 ├── backend/           # FastAPI Python application
 └── README.md         # This file

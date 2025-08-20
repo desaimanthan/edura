@@ -49,12 +49,7 @@ export function Sidebar() {
     <div className="flex h-screen w-64 flex-col bg-white fixed left-0 top-0">
       {/* Logo/Brand Section */}
       <div className="flex h-16 items-center px-6 sidebar-border-fix">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">P</span>
-          </div>
-          <h2 className="text-xl font-bold text-gray-900">ProfessorAI</h2>
-        </div>
+        <img src="/Edura_club.svg" alt="Edura" className="h-8 w-auto" />
       </div>
 
       {/* Navigation */}

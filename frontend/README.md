@@ -1,6 +1,6 @@
-# ProfessorAI Frontend
+# Edura Frontend
 
-Modern React-based frontend application built with Next.js, providing a comprehensive user interface for the ProfessorAI educational platform.
+Modern React-based frontend application built with Next.js, providing a comprehensive user interface for the Edura educational platform.
 
 ## 🚀 Overview
 
@@ -112,7 +112,7 @@ The frontend application delivers a responsive, accessible, and intuitive user e
    NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id
    
    # App Configuration
-   NEXT_PUBLIC_APP_NAME=ProfessorAI
+   NEXT_PUBLIC_APP_NAME=Edura
    NEXT_PUBLIC_APP_URL=http://localhost:3000
    ```
 
@@ -270,7 +270,7 @@ The application uses a custom component library built on top of Radix UI primiti
 |----------|-------------|---------|
 | `NEXT_PUBLIC_API_URL` | Backend API URL | `http://localhost:8000` |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google OAuth client ID | Optional |
-| `NEXT_PUBLIC_APP_NAME` | Application name | `ProfessorAI` |
+| `NEXT_PUBLIC_APP_NAME` | Application name | `Edura` |
 | `NEXT_PUBLIC_APP_URL` | Frontend URL | `http://localhost:3000` |
 
 ### Next.js Configuration
@@ -363,7 +363,7 @@ npm install --save-dev @testing-library/react @testing-library/jest-dom jest jes
 
 ## 📄 License
 
-This project is part of the ProfessorAI platform and follows the same license terms.
+This project is part of the Edura platform and follows the same license terms.
 
 ## 🔗 Related Documentation
 

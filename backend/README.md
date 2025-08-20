@@ -1,6 +1,6 @@
-# ProfessorAI Backend
+# Edura Backend
 
-FastAPI-based backend service providing authentication, user management, and role-based access control for the ProfessorAI educational platform.
+FastAPI-based backend service providing authentication, user management, and role-based access control for the Edura educational platform.
 
 ## 🚀 Overview
 
@@ -92,7 +92,7 @@ pydantic[email]>=2.8.0
    ```env
    # Database
    MONGODB_URL=mongodb://localhost:27017
-   DATABASE_NAME=professorai
+   DATABASE_NAME=edura
 
    # JWT Configuration
    JWT_SECRET_KEY=your-super-secret-jwt-key-here
@@ -241,7 +241,7 @@ backend/
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `MONGODB_URL` | MongoDB connection string | `mongodb://localhost:27017` |
-| `DATABASE_NAME` | Database name | `professorai` |
+| `DATABASE_NAME` | Database name | `edura` |
 | `JWT_SECRET_KEY` | JWT signing secret | Required |
 | `JWT_ALGORITHM` | JWT algorithm | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Token expiration | `30` |
@@ -326,4 +326,4 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 ## 📄 License
 
-This project is part of the ProfessorAI platform and follows the same license terms.
+This project is part of the Edura platform and follows the same license terms.
