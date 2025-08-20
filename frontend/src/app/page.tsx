@@ -78,7 +78,7 @@ export default function Home() {
               </h1>
               
               <p className="text-lg lg:text-xl text-gray-600 mb-8 leading-relaxed">
-                Scale your expertise with AI that creates personalized curricula, keeps content fresh, and adapts to every student's learning style.
+                Scale your expertise with AI that creates personalized curricula, keeps content fresh, and adapts to every student&apos;s learning style.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 mb-8">
@@ -373,7 +373,7 @@ export default function Home() {
                     ))}
                   </div>
                   <p className="text-white/80 mb-6 leading-relaxed">
-                    "{testimonial.content}"
+                    &ldquo;{testimonial.content}&rdquo;
                   </p>
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 bg-gradient-to-r ${testimonial.gradient} rounded-full flex items-center justify-center`}>

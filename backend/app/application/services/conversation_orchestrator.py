@@ -411,19 +411,9 @@ class ConversationOrchestrator:
             # Handle streaming signals for content creation start
             if 'content_creation_started' in function_results:
                 creation_result = function_results['content_creation_started']
-                if creation_result.get('streaming'):
-                    # Return streaming signal with metadata for frontend to handle
-                    return {
-                        "response": agent_result.get('response', ''),
-                        "course_id": final_course_id,
-                        "function_results": function_results,
-                        "streaming": {
-                            "type": "content_creation",
-                            "course_id": creation_result.get('course_id'),
-                            "batch_mode": creation_result.get('batch_mode', False)
-                        }
-                    }
-                elif creation_result.get('auto_trigger') or creation_result.get('workflow_transition', {}).get('trigger_immediately'):
+                
+                # CRITICAL FIX: Check for auto-trigger first, regardless of streaming flag
+                if creation_result.get('auto_trigger') or creation_result.get('workflow_transition', {}).get('trigger_immediately'):
                     # CRITICAL FIX: Check if content generation has already been started to prevent duplicate generation
                     print(f"🚀 [ConversationOrchestrator] Auto-trigger detected for content creation!")
                     print(f"   📋 Next agent: {creation_result.get('next_agent', 'material_content_generator')}")

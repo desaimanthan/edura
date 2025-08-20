@@ -55,12 +55,12 @@ interface FileData {
   }
 }
 
-interface Course {
+interface Course extends Record<string, unknown> {
   id: string
   name: string
   description?: string
   status: string
-  structure: any
+  structure: Record<string, unknown>
   course_design_public_url?: string
 }
 
@@ -193,7 +193,7 @@ export default function CreateCourse() {
       
       // Determine the correct endpoint based on modification type
       let endpoint = `http://localhost:8000/courses/${courseId}/generate-course-design`
-      let requestBody: any = { focus }
+      let requestBody: Record<string, unknown> = { focus }
       
       if (modificationType === 'research') {
         endpoint = `http://localhost:8000/courses/${courseId}/generate-research`
@@ -316,7 +316,7 @@ export default function CreateCourse() {
                     // Create course-design.md file in store
                     
                     // Get research content if available for context
-                    const researchContext = (window as any).researchContent ? 
+                    const researchContext = (window as unknown as Record<string, unknown>).researchContent ? 
                       '\n\n*Building upon comprehensive research findings...*\n\n' : 
                       '\n\n*Preparing comprehensive course design...*\n\n'
                     
@@ -464,7 +464,7 @@ export default function CreateCourse() {
                     setSelectedFile(researchFile)
                     
                     // Store research content for later access
-                    ;(window as any).researchContent = completedResearchContent
+                    ;(window as unknown as Record<string, unknown>).researchContent = completedResearchContent
                   }, 100)
                 }
                 else if (data.type === 'generation_start') {
@@ -675,7 +675,7 @@ export default function CreateCourse() {
         <div className="bg-white rounded-lg border shadow-sm h-full overflow-hidden">
           <CourseStructure 
             onFileSelect={setSelectedFile} 
-            course={course}
+            course={course || undefined}
           />
         </div>
 

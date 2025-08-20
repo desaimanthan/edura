@@ -89,6 +89,12 @@ class CourseStructureAgent:
 IMPORTANT: When calling functions, always use the EXACT course_id parameter that was passed to you in the conversation context. The course_id is: {course_id}
 DO NOT use the course name or any other value as the course_id parameter.
 
+CRITICAL: APPROVAL MESSAGE HANDLING
+If the user message contains "approve", "approve and proceed", "start content creation", or similar approval language:
+1. First call approve_structure with approved=true
+2. Then call start_content_creation to begin content generation
+3. This will update the database and trigger the content generation workflow
+
 You will always be given two inputs:
 1. `course_design.md` → contains course structure (modules, chapters, descriptions, learning objectives with Bloom's taxonomy levels, pedagogy strategies, assessments, and learner type such as Beginner, Intermediate, or Expert).
 2. `research.md` → contains domain-specific research (tools, trends, case studies, industry practices, skills, academic findings, etc.).

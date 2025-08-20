@@ -68,7 +68,7 @@ interface Course {
   name: string
   description?: string
   status: string
-  structure: any
+  structure: Record<string, unknown>
   curriculum_public_url?: string
   course_design_public_url?: string
   research_public_url?: string
@@ -83,10 +83,8 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
   const resolvedParams = use(params)
   const [selectedFile, setSelectedFile] = useState<FileData | null>(null)
   const [course, setCourse] = useState<Course | null>(null)
-  const [messages, setMessages] = useState<any[]>([])
+  const [messages, setMessages] = useState<Array<Record<string, unknown>>>([])
   const [loading, setLoading] = useState(true)
-  const [isGeneratingCurriculum, setIsGeneratingCurriculum] = useState(false)
-  const [curriculumContent, setCurriculumContent] = useState<string>('')
   const [successMessage, setSuccessMessage] = useState<string>('')
   const [successMessageTimestamp, setSuccessMessageTimestamp] = useState<number>(0)
   const isLoadingCourse = useRef(false)
@@ -132,7 +130,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
           displayTitle: selectedNode.displayTitle, // Pass through displayTitle
           materialId: selectedNode.materialId, // Pass through materialId
           status: selectedNode.status // Pass through status for assessment detection
-        } as any) // Cast to any to allow additional properties
+        } as FileData & Record<string, unknown>) // Cast to allow additional properties
       }
     })
 
@@ -165,7 +163,6 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
         // Handle workflow restoration results
         if (workflowContext.success) {
           const nextAction = workflowContext.next_action
-          const currentStep = workflowContext.workflow_state.current_step
           
           // Check if we should auto-trigger streaming based on current step and available files
           const availableFiles = workflowContext.restoration_context?.available_files || {}
@@ -253,7 +250,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
         sessionStorage.setItem(`workflow_context_${resolvedParams.courseId}`, JSON.stringify(contextData))
       }
 
-    } catch (error) {
+    } catch {
       router.push('/courses/create')
     } finally {
       setLoading(false)
@@ -282,16 +279,13 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
           // Reinitialize store with updated course data
           courseFileOperations.initializeFromCourse(courseData)
         }
-      } catch (error) {
+      } catch {
         // Failed to refresh course data
       }
     }, 2000) // Wait 2 seconds for backend to complete image generation
   }
 
   const handleCurriculumStreaming = async (courseId: string, focus?: string, modificationType?: string) => {
-    setIsGeneratingCurriculum(true)
-    setCurriculumContent('')
-    
     // Determine the type of streaming
     const isResearch = modificationType === 'research'
     const isModification = modificationType === 'modification'
@@ -367,7 +361,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
         let hasSetCourseDesignFile = false
         // Fallback control for auto-trigger to structure
         let designCompleted = false
-        let structureFallbackTimer: any = null
+        let structureFallbackTimer: NodeJS.Timeout | null = null
 
         // For modifications, we need to preserve the original content
         if (isModification) {
@@ -389,9 +383,9 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
                 }
               }
             }
-            } catch (error) {
-              // Failed to get original content for modification
-            }
+          } catch {
+            // Failed to get original content for modification
+          }
         }
 
         if (reader) {
@@ -421,7 +415,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
                   let data
                   try {
                     data = JSON.parse(jsonStr)
-                  } catch (parseError) {
+                  } catch {
                     continue
                   }
 
@@ -457,7 +451,6 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
                     // Create or update research progress display
                     const progressMessage = data.message || `Conducting web search ${data.search_count || 0}...`
                     const isCompleted = data.status === 'completed'
-                    const isAnalyzing = data.status === 'analyzing'
                     
                     if (isCompleted) {
                       // Research is complete, switch to research.md file
@@ -504,7 +497,6 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
                     } else {
                       // Stream content to course-design.md in store
                       fullContent = data.data?.full_content || data.full_content || fullContent
-                      setCurriculumContent(fullContent)
                       courseFileOperations.setContent('/course-design.md', fullContent)
                       
                       // Check if course design streaming is complete
@@ -626,7 +618,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
                             }
                             return false
                           }
-                        } catch (error) {
+                        } catch {
                           if (retryCount < 3) {
                             const delay = retryCount === 0 ? 300 : 1000 * (retryCount + 1)
                             setTimeout(() => refreshCourseDataForResearch(retryCount + 1), delay)
@@ -672,169 +664,9 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
                     }
                     setSelectedFile(generationFile)
                   }
-                  else if (data.type === 'start') {
-                    // If structure auto-trigger starts after design completion, cancel fallback timer
-                    if (designCompleted && structureFallbackTimer) {
-                      clearTimeout(structureFallbackTimer)
-                      structureFallbackTimer = null
-                    }
-                    // Create course-design.md file in store if not already created
-                    if (!hasSetCourseDesignFile) {
-                      hasSetCourseDesignFile = true
-                      const initialContent = isModification && originalContent ? 
-                        originalContent + '\n\n---\n\n' + (data.data?.content || data.content || 'Starting modification...') :
-                        `# 🎯 Course Design Generation\n\n*Analyzing research findings and generating comprehensive course structure...*\n\n*Preparing comprehensive course design...*\n\n⏳ **Status:** Initializing course design generation\n\n📊 **Progress:** Preparing content based on latest research\n\n---\n\n*Content will appear here as it's generated...*`
-                      
-                      courseFileOperations.upsertFile('/course-design.md', {
-                        fileType: 'markdown',
-                        status: 'streaming',
-                        source: 'stream',
-                        content: initialContent
-                      })
-                      courseFileOperations.setSelectedPath('/course-design.md')
-                    }
-                    
-                    if (isModification && originalContent) {
-                      setSelectedFile(prev => prev ? {
-                        ...prev,
-                        content: originalContent + '\n\n---\n\n' + (data.data?.content || data.content || 'Starting modification...')
-                      } : null)
-                    } else {
-                      const generationFile: FileData = {
-                        id: 'generation-progress',
-                        name: 'Course Generation',
-                        type: 'progress',
-                        fileType: 'generation-progress',
-                        progressData: {
-                          type: 'generation',
-                          completed: 0,
-                          total: 6,
-                          currentPhase: 'Starting generation...',
-                          totalWords: 0,
-                          totalSections: 0,
-                          overallProgress: 0,
-                          phases: []
-                        }
-                      }
-                      setSelectedFile(generationFile)
-                    }
-                  }
-                  else if (data.type === 'content') {
-                    fullContent = data.data?.full_content || data.full_content || fullContent
-                    setCurriculumContent(fullContent)
-                    
-                    // Update store with course design content
-                    if (fullContent && hasSetCourseDesignFile) {
-                      courseFileOperations.setContent('/course-design.md', fullContent)
-                    }
-                    
-                    // If we're in generation progress mode, update the progress based on content
-                    if (selectedFile?.type === 'progress' && selectedFile?.fileType === 'generation-progress') {
-                      const wordCount = fullContent.split(/\s+/).length
-                      const sectionCount = (fullContent.match(/^##?\s/gm) || []).length
-                      const estimatedTotalWords = 3000
-                      const currentProgress = Math.min(Math.floor((wordCount / estimatedTotalWords) * 6), 5)
-                      
-                      // Update progress more frequently to show movement
-                      if (selectedFile.progressData && (currentProgress >= selectedFile.progressData.completed || wordCount > (selectedFile.progressData.totalWords || 0) + 100)) {
-                        setSelectedFile(prev => prev && prev.progressData ? {
-                          ...prev,
-                          progressData: {
-                            ...prev.progressData,
-                            completed: Math.max(currentProgress, 1), // Ensure at least 1 progress
-                            totalWords: wordCount,
-                            totalSections: sectionCount,
-                            currentPhase: `Generating content... (${wordCount} words, ${sectionCount} sections)`,
-                            overallProgress: Math.floor((wordCount / estimatedTotalWords) * 100)
-                          }
-                        } : prev)
-                      }
-                    } else {
-                      // Switch to file view when content is substantial
-                      setSelectedFile(prev => prev ? {
-                        ...prev,
-                        type: 'file',
-                        fileType: 'markdown',
-                        content: fullContent
-                      } : null)
-                    }
-                  }
-                  else if (data.type === 'progress') {
-                    // Handle legacy progress messages
-                    const progressContent = data.data?.content || data.content || ''
-                    
-                    if (selectedFile?.type === 'progress' && selectedFile?.fileType === 'research-progress') {
-                      setSelectedFile(prev => prev && prev.progressData ? {
-                        ...prev,
-                        progressData: {
-                          ...prev.progressData,
-                          currentTask: progressContent.replace('🌐 ', '').replace('✅ ', ''),
-                          completed: progressContent.includes('✅') ? prev.progressData.completed + 1 : prev.progressData.completed,
-                          estimatedTimeRemaining: progressContent.includes('sources analyzed') ? 
-                            progressContent.match(/(\d+m \d+s)/)?.[1] : prev.progressData.estimatedTimeRemaining
-                        }
-                      } : prev)
-                    } else if (!isModification || !originalContent) {
-                      setSelectedFile(prev => prev ? {
-                        ...prev,
-                        content: fullContent + '\n\n' + progressContent
-                      } : null)
-                    }
-                  }
-                  else if (data.type === 'start' && data.content && data.content.includes('structure')) {
-                    // Structure generation is starting - real-time events will be handled by SSE
-                  }
-                  else if (data.type === 'folder_created') {
-                    // Handle real-time folder creation during content structure generation
-                    courseFileOperations.ensureFolder(data.file_path)
-                  }
-                  else if (data.type === 'material_created') {
-                    // Handle real-time material file creation during content structure generation
-                    
-                    // Create content based on material type and status
-                    let content = ''
-                    if (data.description) {
-                      const materialTypeLabel = data.material_type === 'slide' ? 'Slide' : 
-                                               data.material_type === 'assessment' ? 'Assessment' : 
-                                               'Content'
-                      
-                      content = `# ${data.title}\n\n*This ${materialTypeLabel.toLowerCase()} is being generated...*\n\n**Description:**\n${data.description}\n\n---\n\n*Content will appear here as it's generated.*`
-                    } else {
-                      content = `# ${data.title}\n\n*This content is being generated...*\n\n---\n\n*Please wait while content is being created.*`
-                    }
-                    
-                    courseFileOperations.upsertFile(data.file_path, {
-                      fileType: 'markdown',
-                      status: data.status === 'saved' ? 'saved' : 'generating',
-                      source: 'stream',
-                      content: content,
-                      createdAt: Date.now(),
-                      slideNumber: data.slide_number
-                    })
-                    
-                    // Auto-select the first material file for immediate feedback
-                    if (data.slide_number === 1 || !courseFileOperations.getSelectedNode()) {
-                      courseFileOperations.setSelectedPath(data.file_path)
-                    }
-                  }
-                  else if (data.type === 'material_progress') {
-                    // Handle real-time material progress updates during content structure generation
-                    
-                    const existing = courseFileOperations.getSnapshot().nodesByPath.get(data.file_path)
-                    if (existing) {
-                      courseFileOperations.upsertFile(data.file_path, {
-                        status: 'generating',
-                        content: existing.content + `\n\n*${data.message}*`
-                      })
-                    }
-                  }
                   else if (data.type === 'complete') {
                     // Determine if this is the CourseStructureAgent completion or CourseDesignAgent completion
                     const isStructureComplete = !!(data.structure_data)
-                    const hasAutoTransition =
-                      !!(data.workflow_transition?.automatic ||
-                         data.workflow_transition?.trigger_automatically ||
-                         (data.workflow_transition?.next_agent === 'course_structure'))
                     
                     if (isStructureComplete) {
                       // Cancel any pending fallback timer
@@ -848,8 +680,8 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
                       // Load final content materials to ensure UI is up to date
                       try {
                         await courseFileOperations.loadContentMaterials(courseId)
-                      } catch (e) {
-                        console.error('Failed to reload content materials:', e)
+                      } catch {
+                        console.error('Failed to reload content materials')
                       }
                       
                       // Surface structure completion to chat via success message props
@@ -860,7 +692,6 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
                       break
                     } else {
                       // Course design completed
-                      const finalContent = data.data?.full_content || data.full_content || fullContent
                       
                       // Finalize files in store
                       courseFileOperations.finalizeFile('/course-design.md', { 
@@ -897,7 +728,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
                             }
                             return false
                           }
-                        } catch (error) {
+                        } catch {
                           // Retry up to 5 times with shorter, more aggressive intervals
                           if (retryCount < 5) {
                             const delay = retryCount === 0 ? 500 : Math.min(1000 * Math.pow(1.5, retryCount), 5000)
@@ -924,7 +755,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
                     } : null)
                     break
                   }
-                } catch (e) {
+                } catch {
                   // Error parsing stream event
                 }
               }
@@ -945,8 +776,6 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
         ...prev,
         content: `❌ Failed to ${isModification ? 'modify' : 'generate'} curriculum. Error: ${errorMessage}\n\nPlease try again.`
       } : null)
-    } finally {
-      setIsGeneratingCurriculum(false)
     }
   }
 

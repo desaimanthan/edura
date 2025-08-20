@@ -25,9 +25,25 @@ interface FileData {
   materialId?: string // Database material ID for assessments and other content
 }
 
+interface Course {
+  id: string
+  name: string
+  description?: string
+  status: string
+  structure: Record<string, unknown>
+  curriculum_public_url?: string
+  course_design_public_url?: string
+  research_public_url?: string
+  research_r2_key?: string
+  research_updated_at?: string
+  cover_image_public_url?: string
+  cover_image_r2_key?: string
+  cover_image_updated_at?: string
+}
+
 interface CourseStructureProps {
   onFileSelect: (file: FileData) => void
-  course?: any // The full course object from the API
+  course?: Course // The full course object from the API
 }
 
 export function CourseStructure({ onFileSelect, course }: CourseStructureProps) {
@@ -189,7 +205,7 @@ export function CourseStructure({ onFileSelect, course }: CourseStructureProps) 
             isSelected ? 'bg-slate-50 border-l-2 border-slate-500' : ''
           }`}
           style={{ paddingLeft: `${8 + level * 16}px` }}
-          onClick={() => isFolder ? toggleFolder(node.path, event as any) : handleTreeSelect(node.id)}
+          onClick={(event) => isFolder ? toggleFolder(node.path, event) : handleTreeSelect(node.id)}
         >
           {/* Chevron for folders */}
           {isFolder && hasChildren && (

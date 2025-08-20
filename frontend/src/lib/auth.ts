@@ -27,8 +27,13 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  avatar?: string;
+  is_active: boolean;
+  role_id?: string;
+  role_name?: string;
   google_id?: string;
+  avatar?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AuthResponse {
@@ -78,14 +83,18 @@ class AuthService {
     const { access_token, id, email: userEmail, name } = response.data;
     
     this.token = access_token;
-    this.user = { id, email: userEmail, name };
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('auth_token', access_token);
-      localStorage.setItem('auth_user', JSON.stringify(this.user));
     }
 
-    return this.user;
+    // Fetch full user data after login
+    const user = await this.getCurrentUser();
+    if (!user) {
+      throw new Error('Failed to fetch user data after login');
+    }
+
+    return user;
   }
 
   async register(name: string, email: string, password: string): Promise<void> {
@@ -156,22 +165,25 @@ class AuthService {
     return response.data.authorization_url;
   }
 
-  handleAuthCallback(token: string, userId: string): User {
+  async handleAuthCallback(token: string, userId: string): Promise<User> {
     this.token = token;
     
-    // We'll get the full user data from the token
-    // For now, create a basic user object
-    this.user = { id: userId, email: '', name: '' };
-
     if (typeof window !== 'undefined') {
       localStorage.setItem('auth_token', token);
-      localStorage.setItem('auth_user', JSON.stringify(this.user));
     }
 
-    // Fetch full user data
-    this.getCurrentUser();
+    // Fetch full user data before returning
+    const user = await this.getCurrentUser();
+    if (!user) {
+      throw new Error('Failed to fetch user data');
+    }
 
-    return this.user;
+    // Dispatch custom event to notify components of user data update
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth-user-updated', { detail: user }));
+    }
+
+    return user;
   }
 
   private clearAuth(): void {

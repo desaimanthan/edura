@@ -426,7 +426,7 @@ const ContentApproval: React.FC<ContentApprovalProps> = ({
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:text-blue-800 text-sm underline"
                       >
-                        ← View Full Content
+                        &larr; View Full Content
                       </a>
                     </div>
                   )}
@@ -512,7 +512,7 @@ const ContentApproval: React.FC<ContentApprovalProps> = ({
             <div className="text-center py-8 text-gray-500">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No content materials or structure found for this course.</p>
-              <p className="text-sm mt-2">Content will appear here once it's generated.</p>
+              <p className="text-sm mt-2">Content will appear here once it&apos;s generated.</p>
             </div>
           </CardContent>
         </Card>

@@ -68,6 +68,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return await authService.getGoogleAuthUrl();
   };
 
+  // Add a method to refresh user data (useful after OAuth callback)
+  const refreshUser = async (): Promise<void> => {
+    setLoading(true);
+    try {
+      const currentUser = await authService.getCurrentUser();
+      setUser(currentUser);
+    } catch (error) {
+      console.error('Error refreshing user:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Listen for storage changes to update user data across tabs
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'auth_user' && e.newValue) {
+        try {
+          const userData = JSON.parse(e.newValue);
+          setUser(userData);
+        } catch (error) {
+          console.error('Error parsing user data from storage:', error);
+        }
+      } else if (e.key === 'auth_user' && !e.newValue) {
+        setUser(null);
+      }
+    };
+
+    // Listen for custom auth user updated event
+    const handleAuthUserUpdated = (e: CustomEvent) => {
+      setUser(e.detail);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('auth-user-updated', handleAuthUserUpdated as EventListener);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('auth-user-updated', handleAuthUserUpdated as EventListener);
+    };
+  }, []);
+
   const value: AuthContextType = {
     user,
     loading,

@@ -97,7 +97,7 @@ export default function Courses() {
       const data = await response.json()
       
       // Ensure each course has an id field (handle both _id and id)
-      const coursesWithId = data.map((course: any) => ({
+      const coursesWithId = data.map((course: Course & { _id?: string }) => ({
         ...course,
         id: course.id || course._id
       }))
@@ -464,7 +464,7 @@ export default function Courses() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Course</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{selectedCourse?.name}"? This action cannot be undone.
+              Are you sure you want to delete &ldquo;{selectedCourse?.name}&rdquo;? This action cannot be undone.
               All course data, including curriculum files and chat history, will be permanently deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>

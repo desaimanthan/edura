@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 import Link from "next/link"
 import { useAuth } from "@/components/providers/auth-provider"
-import { CheckCircle, Brain, Eye, EyeOff, ArrowLeft, Star } from "lucide-react"
+import { CheckCircle, Eye, EyeOff, ArrowLeft, Star } from "lucide-react"
 
 export default function SignUp() {
   const [firstName, setFirstName] = useState("")
@@ -41,12 +41,13 @@ export default function SignUp() {
       try {
         await login(email, password)
         router.push("/dashboard")
-      } catch (loginError) {
+      } catch {
         toast.error("Registration successful, but sign-in failed. Please try signing in manually.")
         router.push("/auth/signin")
       }
-    } catch (error: any) {
-      toast.error(error.message || "Something went wrong")
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Something went wrong"
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -85,7 +86,7 @@ export default function SignUp() {
               Join 10,000+ educators transforming education
             </h1>
             <p className="text-xl text-white/90 mb-8 leading-relaxed">
-              Start creating personalized, AI-powered courses that adapt to every student's needs.
+              Start creating personalized, AI-powered courses that adapt to every student&apos;s needs.
             </p>
             
             {/* Stats */}

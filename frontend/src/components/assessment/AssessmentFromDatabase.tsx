@@ -67,7 +67,7 @@ export function AssessmentFromDatabase({ selectedFile }: AssessmentFromDatabaseP
         }
 
         // Extract material ID from the selected file - use materialId if available, otherwise fallback
-        const materialId = (selectedFile as any).materialId || selectedFile.id || selectedFile.name
+        const materialId = (selectedFile as FileData & { materialId?: string }).materialId || selectedFile.id || selectedFile.name
         
         // Check if we have a valid MongoDB ObjectId
         if (!materialId || typeof materialId !== 'string' || materialId.length !== 24) {

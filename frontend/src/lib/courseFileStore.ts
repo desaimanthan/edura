@@ -6,6 +6,28 @@ export type FileNodeKind = 'folder' | 'file'
 export type FileNodeStatus = 'streaming' | 'pending' | 'saved' | 'error' | 'generating'
 export type FileNodeSource = 'stream' | 'db' | 'r2'
 
+interface ContentMaterial {
+  _id?: string;
+  id?: string;
+  course_id?: string;
+  module_number: number;
+  chapter_number: number;
+  material_type: string;
+  title: string;
+  description?: string;
+  content?: string;
+  status?: string;
+  content_status?: string;
+  r2_key?: string;
+  public_url?: string;
+  url?: string;
+  created_at?: string;
+  updated_at?: string;
+  slide_number?: number | null;
+  material_id?: string;
+  file_path?: string;
+}
+
 export interface FileNode {
   id: string
   name: string
@@ -415,6 +437,22 @@ class CourseFileStore {
     return this.isLoadingContent
   }
 
+  clear = (): void => {
+    this.nodesByPath.clear()
+    this.nodesByPath.set('/', {
+      id: 'root',
+      name: 'Course Files',
+      path: '/',
+      kind: 'folder',
+      status: 'saved',
+      children: [],
+      source: 'stream'
+    })
+    this.selectedPath = null
+    this.saveToLocalStorage()
+    this.notify()
+  }
+
   setCourseId = (courseId: string): void => {
     if (this.courseId !== courseId) {
       console.log(`🔄 [COURSE FILE STORE] Switching from course ${this.courseId} to ${courseId}`)
@@ -444,7 +482,7 @@ class CourseFileStore {
     
     try {
       // Create a lightweight version of the data for localStorage
-      const lightweightNodes = Array.from(this.nodesByPath.entries()).map(([path, node]) => {
+        const lightweightNodes = Array.from(this.nodesByPath.entries()).map(([path, node]) => {
         // Only store essential data, exclude large content
         const lightNode = {
           id: node.id,
@@ -676,14 +714,14 @@ class CourseFileStore {
         // Handle different data versions
         if (data.version === '2.0') {
           // New lightweight format - restore full node structure
-          this.nodesByPath = new Map(data.nodesByPath.map(([path, node]: [string, any]) => {
+          this.nodesByPath = new Map(data.nodesByPath.map(([path, node]: [string, Partial<FileNode>]) => {
             const fullNode: FileNode = {
-              id: node.id,
-              name: node.name,
-              path: node.path,
-              kind: node.kind,
-              status: node.status,
-              source: node.source,
+              id: node.id || '',
+              name: node.name || '',
+              path: node.path || '',
+              kind: node.kind || 'file',
+              status: node.status || 'pending',
+              source: node.source || 'stream',
               fileType: node.fileType,
               url: node.url,
               r2Key: node.r2Key,
@@ -735,7 +773,7 @@ class CourseFileStore {
   }
 
   // Initialize from course data (DB URLs)
-  initializeFromCourse = (course: any): void => {
+  initializeFromCourse = (course: Record<string, unknown>): void => {
     // Set loading flag IMMEDIATELY to prevent auto-selection during initialization
     this.isLoadingContent = true
     
@@ -750,10 +788,10 @@ class CourseFileStore {
     
     // Option 1: Dynamic files array (if backend supports it)
     if (course.files && Array.isArray(course.files)) {
-      course.files.forEach((file: any) => {
-        this.upsertFile(file.path || `/${file.name}`, {
-          fileType: file.type || 'markdown',
-          url: file.url,
+      course.files.forEach((file: Record<string, unknown>) => {
+        this.upsertFile((file.path as string) || `/${file.name as string}`, {
+          fileType: ((file.type as string) || 'markdown') as 'markdown' | 'pdf' | 'image' | 'slide-template',
+          url: file.url as string,
           status: 'saved',
           source: 'r2'
         })
@@ -771,7 +809,7 @@ class CourseFileStore {
                          course.cover_image_medium_url || 
                          course.cover_image_small_url
 
-    if (coverImageUrl) {
+    if (coverImageUrl && typeof coverImageUrl === 'string') {
       const existing = this.nodesByPath.get('/cover-image.png')
       const shouldUpdate = !existing || existing.url !== coverImageUrl || (!existing.url && coverImageUrl)
       
@@ -801,8 +839,8 @@ class CourseFileStore {
         
         if (shouldUpdate) {
           this.upsertFile(path, {
-            fileType: type as any,
-            url: course[key],
+            fileType: type as 'markdown' | 'pdf' | 'image' | 'slide-template',
+            url: course[key] as string,
             status: 'saved',
             source: 'r2',
             createdAt: existing?.createdAt || createdAt // Preserve existing timestamp
@@ -812,7 +850,7 @@ class CourseFileStore {
     }
     
     // Option 3: Load generated content materials from database
-    this.loadContentMaterials(course.id || course._id)
+    this.loadContentMaterials((course.id || course._id) as string)
     
     // Clear loading flag after a short delay to allow auto-selection
     setTimeout(() => {
@@ -874,12 +912,12 @@ class CourseFileStore {
   // Periodically refresh course data to catch newly generated files (like cover images)
   startPeriodicRefresh = (courseId: string): void => {
     // Clear any existing interval
-    if ((this as any).refreshInterval) {
-      clearInterval((this as any).refreshInterval)
-    }
+      if ((this as Record<string, unknown>).refreshInterval) {
+        clearInterval((this as Record<string, unknown>).refreshInterval as NodeJS.Timeout)
+      }
 
-    // Set up periodic refresh every 5 seconds when course is being created
-    (this as any).refreshInterval = setInterval(async () => {
+      // Set up periodic refresh every 5 seconds when course is being created
+      ;(this as Record<string, unknown>).refreshInterval = setInterval(async () => {
       try {
         const token = localStorage.getItem('auth_token')
         if (!token) return
@@ -903,9 +941,9 @@ class CourseFileStore {
   }
 
   stopPeriodicRefresh = (): void => {
-    if ((this as any).refreshInterval) {
-      clearInterval((this as any).refreshInterval)
-      ;(this as any).refreshInterval = null
+    if ((this as Record<string, unknown>).refreshInterval) {
+      clearInterval((this as Record<string, unknown>).refreshInterval as NodeJS.Timeout)
+      ;(this as Record<string, unknown>).refreshInterval = null
     }
   }
 
@@ -1016,9 +1054,9 @@ class CourseFileStore {
       }
 
       // Create a simple structure: module -> chapter -> files
-      const processedStructure: { [moduleKey: string]: { [chapterKey: string]: any[] } } = {}
+      const processedStructure: { [moduleKey: string]: { [chapterKey: string]: ContentMaterial[] } } = {}
       
-      materials.forEach((material: any) => {
+      materials.forEach((material: ContentMaterial) => {
         const moduleKey = `${material.module_number}`
         const chapterKey = `${material.chapter_number}`
         
@@ -1063,12 +1101,12 @@ class CourseFileStore {
           }
           
           // Filter materials to only include those for THIS specific chapter
-          const filteredMaterials = chapterMaterials.filter((material: any) => {
+          const filteredMaterials = chapterMaterials.filter((material: ContentMaterial) => {
             return material.module_number === moduleNumber && material.chapter_number === chapterNumber
           })
           
           // Sort materials by material type first (slides before assessments), then by sequential number
-          filteredMaterials.sort((a: any, b: any) => {
+          filteredMaterials.sort((a: ContentMaterial, b: ContentMaterial) => {
             // Define type priority: slides first, then assessments, then others
             const getTypePriority = (materialType: string) => {
               switch (materialType) {
@@ -1088,7 +1126,7 @@ class CourseFileStore {
             }
             
             // Within the same type, sort by slide_number (sequential number)
-            if (a.slide_number !== null && b.slide_number !== null) {
+            if (a.slide_number !== null && b.slide_number !== null && typeof a.slide_number === 'number' && typeof b.slide_number === 'number') {
               return a.slide_number - b.slide_number
             }
             
@@ -1105,7 +1143,7 @@ class CourseFileStore {
           })
           
           // Create files for this specific chapter ONLY
-          filteredMaterials.forEach((material: any, materialIndex: number) => {
+          filteredMaterials.forEach((material: ContentMaterial, materialIndex: number) => {
             
             // Create display name with sequential number for slides and assessments
             let displayName = material.title
@@ -1154,7 +1192,7 @@ class CourseFileStore {
 
             // Calculate creation time to maintain the sorted order from above
             // Use materialIndex from the already-sorted array to preserve the correct order
-            let createdAt = 1000 + (moduleNumber * 100) + (chapterNumber * 10) + materialIndex
+            const createdAt = 1000 + (moduleNumber * 100) + (chapterNumber * 10) + materialIndex
 
             const materialId = material._id || material.id
 
@@ -1265,7 +1303,7 @@ class CourseFileStore {
       const fileType = fileName.endsWith('.png') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') ? 'image' : 'markdown'
       
       this.upsertFile(normalizedPath, {
-        fileType: fileType as any,
+        fileType: fileType as 'markdown' | 'pdf' | 'image' | 'slide-template',
         url: url,
         status: 'saved',
         source: 'r2',
@@ -1275,9 +1313,9 @@ class CourseFileStore {
   }
 
   // Content material event handlers for real-time file/folder updates
-  handleContentMaterialEvent = (eventData: any): void => {
+  handleContentMaterialEvent = (eventData: Record<string, unknown>): void => {
     if (eventData.type === 'folder_created') {
-      this.ensureFolder(eventData.file_path)
+      this.ensureFolder(eventData.file_path as string)
     } else if (eventData.type === 'material_created') {
       // Create content based on material type and status
       let content = ''
@@ -1291,43 +1329,43 @@ class CourseFileStore {
         content = `# ${eventData.title}\n\n*This content is being generated...*\n\n---\n\n*Please wait while content is being created.*`
       }
       
-      const normalizedPath = this.normalizePath(eventData.file_path)
+      const normalizedPath = this.normalizePath(eventData.file_path as string)
       const existing = this.nodesByPath.get(normalizedPath)
       
       if (existing) {
         // Update existing file in place - preserve original createdAt and slideNumber
-        this.upsertFile(eventData.file_path, {
+        this.upsertFile(eventData.file_path as string, {
           fileType: 'markdown',
           status: eventData.status === 'saved' ? 'saved' : 'generating',
           source: 'stream',
           content: content,
           createdAt: existing.createdAt, // Preserve original creation time for sorting
           slideNumber: existing.slideNumber, // Preserve original slide number
-          displayTitle: existing.displayTitle || eventData.title, // Preserve display title
+          displayTitle: existing.displayTitle || (eventData.title as string), // Preserve display title
           materialId: existing.materialId // CRITICAL: Preserve materialId for assessments
         })
       } else {
         // Create new file only if it doesn't exist
-        this.upsertFile(eventData.file_path, {
+        this.upsertFile(eventData.file_path as string, {
           fileType: 'markdown',
           status: eventData.status === 'saved' ? 'saved' : 'generating',
           source: 'stream',
           content: content,
           createdAt: Date.now(),
-          slideNumber: eventData.slide_number,
-          displayTitle: eventData.title,
-          materialId: eventData.material_id // Store materialId for new files
+          slideNumber: eventData.slide_number as number | null,
+          displayTitle: eventData.title as string,
+          materialId: eventData.material_id as string // Store materialId for new files
         })
       }
       
       // Auto-select the first material file for immediate feedback
       if (eventData.slide_number === 1 || !this.selectedPath) {
-        this.autoSelectStreamingFile(eventData.file_path)
+        this.autoSelectStreamingFile(eventData.file_path as string)
       }
     } else if (eventData.type === 'material_content_start') {
       // Handle agent_5 content generation start
-      const normalizedPath = this.normalizePath(eventData.file_path)
-      let existing = this.nodesByPath.get(normalizedPath)
+      const normalizedPath = this.normalizePath(eventData.file_path as string)
+      const existing = this.nodesByPath.get(normalizedPath)
       
       // CRITICAL FIX: Find existing file by materialId if path-based lookup fails
       let targetFile = existing
@@ -1351,11 +1389,11 @@ class CourseFileStore {
           fileType: 'markdown',
           status: 'generating',
           source: 'stream',
-          content: `# ${eventData.title}\n\n*Generating comprehensive study material content...*\n\n---\n\n*Content will appear here as it's generated.*`,
+          content: `# ${eventData.title as string}\n\n*Generating comprehensive study material content...*\n\n---\n\n*Content will appear here as it's generated.*`,
           createdAt: targetFile.createdAt, // Preserve original creation time for sorting
           slideNumber: targetFile.slideNumber, // Preserve original slide number
-          displayTitle: targetFile.displayTitle || eventData.title, // Preserve display title
-          materialId: targetFile.materialId || eventData.material_id // CRITICAL: Preserve materialId
+          displayTitle: targetFile.displayTitle || (eventData.title as string), // Preserve display title
+          materialId: targetFile.materialId || (eventData.material_id as string) // CRITICAL: Preserve materialId
         })
         
         // CRITICAL: Auto-select the ORIGINAL file path, not the event path
@@ -1366,11 +1404,11 @@ class CourseFileStore {
           fileType: 'markdown',
           status: 'generating',
           source: 'stream',
-          content: `# ${eventData.title}\n\n*Generating comprehensive study material content...*\n\n---\n\n*Content will appear here as it's generated.*`,
+          content: `# ${eventData.title as string}\n\n*Generating comprehensive study material content...*\n\n---\n\n*Content will appear here as it's generated.*`,
           createdAt: targetFile.createdAt, // Preserve original creation time for sorting
           slideNumber: targetFile.slideNumber, // Preserve original slide number
-          displayTitle: targetFile.displayTitle || eventData.title, // Preserve display title
-          materialId: targetFile.materialId || eventData.material_id // CRITICAL: Preserve materialId
+          displayTitle: targetFile.displayTitle || (eventData.title as string), // Preserve display title
+          materialId: targetFile.materialId || (eventData.material_id as string) // CRITICAL: Preserve materialId
         })
         
         // Auto-select the file being generated
@@ -1381,11 +1419,11 @@ class CourseFileStore {
           fileType: 'markdown',
           status: 'generating',
           source: 'stream',
-          content: `# ${eventData.title}\n\n*Generating comprehensive study material content...*\n\n---\n\n*Content will appear here as it's generated.*`,
+          content: `# ${eventData.title as string}\n\n*Generating comprehensive study material content...*\n\n---\n\n*Content will appear here as it's generated.*`,
           createdAt: Date.now(),
-          slideNumber: eventData.slide_number,
-          displayTitle: eventData.title,
-          materialId: eventData.material_id
+          slideNumber: eventData.slide_number as number | null,
+          displayTitle: eventData.title as string,
+          materialId: eventData.material_id as string
         })
         
         // Auto-select the new file
@@ -1396,17 +1434,17 @@ class CourseFileStore {
       this.notify()
     } else if (eventData.type === 'material_content_progress') {
       // Handle agent_5 content generation progress
-      const existing = this.nodesByPath.get(this.normalizePath(eventData.file_path))
+      const existing = this.nodesByPath.get(this.normalizePath(eventData.file_path as string))
       if (existing) {
-        this.upsertFile(eventData.file_path, {
+        this.upsertFile(eventData.file_path as string, {
           status: 'generating',
-          content: existing.content + `\n\n*${eventData.message}*`,
+          content: existing.content + `\n\n*${eventData.message as string}*`,
           materialId: existing.materialId // Preserve materialId
         })
       }
     } else if (eventData.type === 'material_content_stream') {
       // Handle agent_5 content streaming
-      const normalizedPath = this.normalizePath(eventData.file_path)
+      const normalizedPath = this.normalizePath(eventData.file_path as string)
       let existing = this.nodesByPath.get(normalizedPath)
       let targetPath = normalizedPath
       
@@ -1423,7 +1461,7 @@ class CourseFileStore {
       }
       
       // Update file with streamed content at the correct path
-      this.setContent(targetPath, eventData.content)
+      this.setContent(targetPath, eventData.content as string)
       
       // Ensure materialId is preserved during streaming
       if (existing && existing.materialId) {
@@ -1440,7 +1478,7 @@ class CourseFileStore {
       }
     } else if (eventData.type === 'material_content_complete') {
       // Handle agent_5 content generation completion
-      const normalizedPath = this.normalizePath(eventData.file_path)
+      const normalizedPath = this.normalizePath(eventData.file_path as string)
       let existing = this.nodesByPath.get(normalizedPath)
       let targetPath = normalizedPath
       
@@ -1458,13 +1496,13 @@ class CourseFileStore {
       
       // CRITICAL FIX: Update content FIRST at the correct path, then finalize
       if (eventData.content) {
-        this.setContent(targetPath, eventData.content)
+        this.setContent(targetPath, eventData.content as string)
       }
       
       // For assessments, DON'T set R2 URL since they should render from database
-      const isAssessment = eventData.title?.toLowerCase().includes('assessment') || 
-                          eventData.title?.toLowerCase().includes('true or false') ||
-                          eventData.title?.toLowerCase().includes('quiz')
+      const isAssessment = (eventData.title as string)?.toLowerCase().includes('assessment') || 
+                          (eventData.title as string)?.toLowerCase().includes('true or false') ||
+                          (eventData.title as string)?.toLowerCase().includes('quiz')
       
       if (isAssessment) {
         // For assessments: only update status, preserve materialId, NO R2 URL
@@ -1484,8 +1522,8 @@ class CourseFileStore {
       } else {
         // For slides: set R2 URL and finalize normally
         this.finalizeFile(targetPath, {
-          url: eventData.public_url,
-          r2Key: eventData.r2_key,
+          url: eventData.public_url as string,
+          r2Key: eventData.r2_key as string,
           status: 'saved'
         })
       }
@@ -1505,27 +1543,27 @@ class CourseFileStore {
       }, 800)
     } else if (eventData.type === 'material_content_error') {
       // Handle agent_5 content generation error
-      const existing = this.nodesByPath.get(this.normalizePath(eventData.file_path))
+      const existing = this.nodesByPath.get(this.normalizePath(eventData.file_path as string))
       
-      this.finalizeFile(eventData.file_path, {
+      this.finalizeFile(eventData.file_path as string, {
         status: 'error'
       })
       
       // Update with error content while preserving materialId
-      const errorContent = `# Content Generation Failed\n\n**Error:** ${eventData.error_message}\n\n---\n\n*Please try generating the content again or contact support if the issue persists.*`
-      this.setContent(eventData.file_path, errorContent)
+      const errorContent = `# Content Generation Failed\n\n**Error:** ${eventData.error_message as string}\n\n---\n\n*Please try generating the content again or contact support if the issue persists.*`
+      this.setContent(eventData.file_path as string, errorContent)
       
       // Preserve materialId for error state
       if (existing && existing.materialId) {
-        const updated = this.nodesByPath.get(this.normalizePath(eventData.file_path))
+        const updated = this.nodesByPath.get(this.normalizePath(eventData.file_path as string))
         if (updated) {
           updated.materialId = existing.materialId
-          this.nodesByPath.set(this.normalizePath(eventData.file_path), updated)
+          this.nodesByPath.set(this.normalizePath(eventData.file_path as string), updated)
         }
       }
       
       // Ensure error file is selected
-      this.setSelectedPath(eventData.file_path)
+      this.setSelectedPath(eventData.file_path as string)
     }
   }
 
@@ -1557,7 +1595,7 @@ class CourseFileStore {
     }
   }
 
-  handleImageGenerationComplete = (filePath: string, publicUrl: string, r2Key: string, fileSize: number, metadata?: any): void => {
+  handleImageGenerationComplete = (filePath: string, publicUrl: string, r2Key: string, fileSize: number, metadata?: Record<string, unknown>): void => {
     this.finalizeFile(filePath, {
       url: publicUrl,
       r2Key: r2Key,
@@ -1566,14 +1604,21 @@ class CourseFileStore {
     
     // Update the existing node with additional metadata
     const existing = this.nodesByPath.get(this.normalizePath(filePath))
-    if (existing && metadata) {
-      const updated = {
+    if (existing && metadata && typeof metadata === 'object') {
+      const updated: FileNode = {
         ...existing,
         content: undefined, // Clear progress message content
-        // Store metadata for potential future use
-        ...(metadata.images && { images: metadata.images }),
-        ...(metadata.image_metadata && { imageMetadata: metadata.image_metadata })
       }
+      
+      // Store metadata for potential future use with proper type checking
+      if (metadata.images && typeof metadata.images === 'object') {
+        (updated as unknown as Record<string, unknown>).images = metadata.images
+      }
+      
+      if (metadata.image_metadata && typeof metadata.image_metadata === 'object') {
+        (updated as unknown as Record<string, unknown>).imageMetadata = metadata.image_metadata
+      }
+      
       this.nodesByPath.set(this.normalizePath(filePath), updated)
     }
     
@@ -1581,7 +1626,7 @@ class CourseFileStore {
     this.notify()
   }
 
-  handleImageGenerationError = (filePath: string, errorMessage: string, errorData?: any): void => {
+  handleImageGenerationError = (filePath: string, errorMessage: string, errorData?: Record<string, unknown>): void => {
     this.finalizeFile(filePath, {
       status: 'error'
     })
@@ -1597,10 +1642,12 @@ class CourseFileStore {
           errorContent += `**Error Type:** ${errorData.error_type}\n\n`
         }
         
-        if (errorData.recovery_suggestions && errorData.recovery_suggestions.length > 0) {
+        if (errorData.recovery_suggestions && Array.isArray(errorData.recovery_suggestions) && errorData.recovery_suggestions.length > 0) {
           errorContent += `**Recovery Suggestions:**\n`
-          errorData.recovery_suggestions.forEach((suggestion: string) => {
-            errorContent += `• ${suggestion}\n`
+          errorData.recovery_suggestions.forEach((suggestion: unknown) => {
+            if (typeof suggestion === 'string') {
+              errorContent += `• ${suggestion}\n`
+            }
           })
           errorContent += `\n`
         }
@@ -1609,13 +1656,14 @@ class CourseFileStore {
           errorContent += `**Retry Available:** Yes (${errorData.retry_count || 0}/3 attempts)\n\n`
         }
         
-        if (errorData.metadata) {
+        if (errorData.metadata && typeof errorData.metadata === 'object') {
+          const metadata = errorData.metadata as Record<string, unknown>
           errorContent += `**Additional Information:**\n`
-          if (errorData.metadata.style_preference) {
-            errorContent += `• Style: ${errorData.metadata.style_preference}\n`
+          if (metadata.style_preference && typeof metadata.style_preference === 'string') {
+            errorContent += `• Style: ${metadata.style_preference}\n`
           }
-          if (errorData.metadata.image_type) {
-            errorContent += `• Type: ${errorData.metadata.image_type}\n`
+          if (metadata.image_type && typeof metadata.image_type === 'string') {
+            errorContent += `• Type: ${metadata.image_type}\n`
           }
         }
       }
@@ -1635,21 +1683,6 @@ class CourseFileStore {
     this.notify()
   }
 
-  clear = (): void => {
-    this.nodesByPath.clear()
-    this.nodesByPath.set('/', {
-      id: 'root',
-      name: 'Course Files',
-      path: '/',
-      kind: 'folder',
-      status: 'saved',
-      children: [],
-      source: 'stream'
-    })
-    this.selectedPath = null
-    this.saveToLocalStorage()
-    this.notify()
-  }
 }
 
 // Global store instance

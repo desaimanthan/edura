@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,20 +10,15 @@ import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 import Link from "next/link"
 import { useAuth } from "@/components/providers/auth-provider"
-import { CheckCircle, Brain, Eye, EyeOff, ArrowLeft, Quote } from "lucide-react"
+import { CheckCircle, Eye, EyeOff, ArrowLeft, Quote } from "lucide-react"
 
-export default function SignIn() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+// Component to handle search params with Suspense boundary
+function ErrorHandler() {
   const searchParams = useSearchParams()
-  const { login, getGoogleAuthUrl } = useAuth()
-
+  
   // Check for error messages from URL params
   const error = searchParams.get('error')
-  if (error && !isLoading) {
+  if (error) {
     if (error === 'oauth_failed') {
       toast.error("Google sign-in failed")
     } else if (error === 'invalid_callback') {
@@ -32,6 +27,17 @@ export default function SignIn() {
       toast.error("Authentication callback failed")
     }
   }
+  
+  return null
+}
+
+function SignInContent() {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
+  const { login, getGoogleAuthUrl } = useAuth()
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,8 +47,9 @@ export default function SignIn() {
       await login(email, password)
       toast.success("Signed in successfully!")
       router.push("/dashboard")
-    } catch (error: any) {
-      toast.error(error.message || "Invalid credentials")
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Invalid credentials'
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -107,7 +114,7 @@ export default function SignIn() {
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
             <Quote className="w-8 h-8 text-white/60 mb-4" />
             <p className="text-white/90 mb-4 leading-relaxed">
-              "Edura has completely transformed how I create courses. What used to take weeks now takes days."
+              &ldquo;Edura has completely transformed how I create courses. What used to take weeks now takes days.&rdquo;
             </p>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-r from-teal-400 to-emerald-400 rounded-full flex items-center justify-center">
@@ -233,7 +240,7 @@ export default function SignIn() {
               </form>
 
               <div className="text-center pt-4">
-                <span className="text-gray-600">Don't have an account? </span>
+                <span className="text-gray-600">Don&apos;t have an account? </span>
                 <Link href="/auth/signup" className="text-emerald-600 hover:text-emerald-700 font-semibold">
                   Sign up for free
                 </Link>
@@ -243,5 +250,16 @@ export default function SignIn() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function SignIn() {
+  return (
+    <>
+      <Suspense fallback={null}>
+        <ErrorHandler />
+      </Suspense>
+      <SignInContent />
+    </>
   )
 }

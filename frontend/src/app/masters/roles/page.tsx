@@ -131,7 +131,7 @@ export default function Roles() {
       
       setIsEditDrawerOpen(false)
       setEditingRole(null)
-      toast.success(`Role "${editForm.name}" has been updated successfully.`)
+      toast.success(`Role &ldquo;${editForm.name}&rdquo; has been updated successfully.`)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred'
       toast.error("Failed to update role", {
@@ -189,7 +189,7 @@ export default function Roles() {
   const handleDeleteRole = async (role: Role) => {
     const roleId = getId(role)
     const confirmDelete = window.confirm(
-      `Are you sure you want to delete the role "${role.name}"?\n\n` +
+      `Are you sure you want to delete the role &ldquo;${role.name}&rdquo;?\n\n` +
       `This role currently has ${role.user_count} user(s) assigned to it.\n\n` +
       `This action cannot be undone.`
     )
@@ -214,7 +214,7 @@ export default function Roles() {
 
       // Refresh the roles list
       await fetchRoles()
-      toast.success(`Role "${role.name}" has been deleted successfully.`)
+      toast.success(`Role &ldquo;${role.name}&rdquo; has been deleted successfully.`)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred'
       toast.error("Failed to delete role", {
@@ -735,7 +735,7 @@ export default function Roles() {
                   <div>
                     <h2 className="text-lg font-semibold">Role Permissions</h2>
                     <p className="text-sm text-muted-foreground">
-                      Permissions assigned to "{viewingRolePermissions.name}"
+                      Permissions assigned to &ldquo;{viewingRolePermissions.name}&rdquo;
                     </p>
                   </div>
                   <Button
@@ -772,7 +772,7 @@ export default function Roles() {
                       <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <h3 className="text-lg font-medium mb-2">No permissions assigned</h3>
                       <p className="text-muted-foreground">
-                        This role doesn't have any permissions assigned yet.
+                        This role doesn&apos;t have any permissions assigned yet.
                       </p>
                     </div>
                   ) : (

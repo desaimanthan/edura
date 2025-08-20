@@ -39,11 +39,11 @@ interface AssessmentData {
 
 interface AssessmentRendererProps {
   assessmentData: AssessmentData
-  onComplete?: (isCorrect: boolean, userAnswer: any) => void
+  onComplete?: (isCorrect: boolean, userAnswer: unknown) => void
 }
 
 export function AssessmentRenderer({ assessmentData, onComplete }: AssessmentRendererProps) {
-  const [userAnswer, setUserAnswer] = useState<any>(null)
+  const [userAnswer, setUserAnswer] = useState<unknown>(null)
   const [showFeedback, setShowFeedback] = useState(false)
   const [isCorrect, setIsCorrect] = useState(false)
 
@@ -60,10 +60,11 @@ export function AssessmentRenderer({ assessmentData, onComplete }: AssessmentRen
         correct = userAnswer === assessmentData.question.correct_answer
         break
       case "matching":
-        if (assessmentData.question.correct_matches) {
+        if (assessmentData.question.correct_matches && typeof userAnswer === 'object' && userAnswer !== null) {
           const correctMatches = assessmentData.question.correct_matches
+          const userAnswerObj = userAnswer as Record<string, string>
           correct = Object.keys(correctMatches).every(
-            key => userAnswer[key] === correctMatches[key]
+            key => userAnswerObj[key] === correctMatches[key]
           )
         }
         break
@@ -73,9 +74,10 @@ export function AssessmentRenderer({ assessmentData, onComplete }: AssessmentRen
         }
         break
       case "fill_in_blank":
-        if (assessmentData.question.blanks) {
+        if (assessmentData.question.blanks && typeof userAnswer === 'object' && userAnswer !== null) {
+          const userAnswerObj = userAnswer as Record<number, string>
           correct = assessmentData.question.blanks.every(blank => {
-            const userInput = userAnswer[blank.position]?.toLowerCase().trim()
+            const userInput = userAnswerObj[blank.position]?.toLowerCase().trim()
             const correctAnswer = blank.correct_answer.toLowerCase().trim()
             const alternatives = blank.alternatives?.map(alt => alt.toLowerCase().trim()) || []
             
@@ -206,7 +208,15 @@ export function AssessmentRenderer({ assessmentData, onComplete }: AssessmentRen
 }
 
 // Individual question components
-function MultipleChoiceQuestion({ question, userAnswer, onAnswerChange, showFeedback, isCorrect }: any) {
+interface QuestionProps {
+  question: AssessmentQuestion
+  userAnswer: unknown
+  onAnswerChange: (answer: unknown) => void
+  showFeedback: boolean
+  isCorrect: boolean
+}
+
+function MultipleChoiceQuestion({ question, userAnswer, onAnswerChange, showFeedback, isCorrect }: QuestionProps) {
   // Ensure question and options are properly formatted
   const questionText = typeof question?.text === 'string' ? question.text : 'Question text not available'
   const options = Array.isArray(question?.options) ? question.options : []
@@ -250,7 +260,7 @@ function MultipleChoiceQuestion({ question, userAnswer, onAnswerChange, showFeed
   )
 }
 
-function ScenarioChoiceQuestion({ question, userAnswer, onAnswerChange, showFeedback, isCorrect }: any) {
+function ScenarioChoiceQuestion({ question, userAnswer, onAnswerChange, showFeedback, isCorrect }: QuestionProps) {
   return (
     <div className="space-y-4">
       {question.scenario && (
@@ -296,11 +306,14 @@ function ScenarioChoiceQuestion({ question, userAnswer, onAnswerChange, showFeed
   )
 }
 
-function MatchingQuestion({ question, userAnswer, onAnswerChange, showFeedback, isCorrect }: any) {
+function MatchingQuestion({ question, userAnswer, onAnswerChange, showFeedback, isCorrect }: QuestionProps) {
   const handleMatchChange = (leftId: string, rightId: string) => {
-    const newAnswer = { ...userAnswer, [leftId]: rightId }
+    const currentAnswer = (typeof userAnswer === 'object' && userAnswer !== null) ? userAnswer as Record<string, string> : {}
+    const newAnswer = { ...currentAnswer, [leftId]: rightId }
     onAnswerChange(newAnswer)
   }
+
+  const userAnswerObj = (typeof userAnswer === 'object' && userAnswer !== null) ? userAnswer as Record<string, string> : {}
 
   return (
     <div className="space-y-4">
@@ -309,7 +322,7 @@ function MatchingQuestion({ question, userAnswer, onAnswerChange, showFeedback, 
         <div>
           <h4 className="font-semibold mb-3">Match these items:</h4>
           <div className="space-y-2">
-            {question.left_items?.map((item: any) => (
+            {question.left_items?.map((item: {id: string, text: string}) => (
               <div key={item.id} className="p-3 bg-muted rounded-lg">
                 <span className="font-medium">{item.id}.</span> {item.text}
               </div>
@@ -319,23 +332,23 @@ function MatchingQuestion({ question, userAnswer, onAnswerChange, showFeedback, 
         <div>
           <h4 className="font-semibold mb-3">With these options:</h4>
           <div className="space-y-2">
-            {question.left_items?.map((leftItem: any) => (
+            {question.left_items?.map((leftItem: {id: string, text: string}) => (
               <div key={leftItem.id} className="flex items-center gap-2">
                 <span className="font-medium w-6">{leftItem.id}.</span>
                 <select
-                  value={userAnswer?.[leftItem.id] || ''}
+                  value={userAnswerObj[leftItem.id] || ''}
                   onChange={(e) => handleMatchChange(leftItem.id, e.target.value)}
                   disabled={showFeedback}
                   className={`flex-1 p-2 border rounded ${
                     showFeedback
-                      ? userAnswer?.[leftItem.id] === question.correct_matches?.[leftItem.id]
+                      ? userAnswerObj[leftItem.id] === question.correct_matches?.[leftItem.id]
                         ? 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
                         : 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
                       : 'border-input bg-background'
                   }`}
                 >
                   <option value="">Select...</option>
-                  {question.right_items?.map((rightItem: any) => (
+                  {question.right_items?.map((rightItem: {id: string, text: string}) => (
                     <option key={rightItem.id} value={rightItem.id}>
                       {rightItem.id}. {rightItem.text}
                     </option>
@@ -350,7 +363,7 @@ function MatchingQuestion({ question, userAnswer, onAnswerChange, showFeedback, 
   )
 }
 
-function RankingQuestion({ question, userAnswer, onAnswerChange, showFeedback, isCorrect }: any) {
+function RankingQuestion({ question, userAnswer, onAnswerChange, showFeedback, isCorrect }: QuestionProps) {
   const [items, setItems] = useState(question.items || [])
 
   const moveItem = (fromIndex: number, toIndex: number) => {
@@ -360,7 +373,7 @@ function RankingQuestion({ question, userAnswer, onAnswerChange, showFeedback, i
     const [movedItem] = newItems.splice(fromIndex, 1)
     newItems.splice(toIndex, 0, movedItem)
     setItems(newItems)
-    onAnswerChange(newItems.map((item: any) => item.id))
+    onAnswerChange(newItems.map((item: {id: string, text: string}) => item.id))
   }
 
   return (
@@ -372,7 +385,7 @@ function RankingQuestion({ question, userAnswer, onAnswerChange, showFeedback, i
         </p>
       )}
       <div className="space-y-2">
-        {items.map((item: any, index: number) => (
+        {items.map((item: {id: string, text: string}, index: number) => (
           <div
             key={item.id}
             className={`flex items-center p-3 rounded-lg border ${
@@ -412,15 +425,18 @@ function RankingQuestion({ question, userAnswer, onAnswerChange, showFeedback, i
   )
 }
 
-function FillInBlankQuestion({ question, userAnswer, onAnswerChange, showFeedback, isCorrect }: any) {
+function FillInBlankQuestion({ question, userAnswer, onAnswerChange, showFeedback, isCorrect }: QuestionProps) {
   const handleBlankChange = (position: number, value: string) => {
-    const newAnswer = { ...userAnswer, [position]: value }
+    const currentAnswer = (typeof userAnswer === 'object' && userAnswer !== null) ? userAnswer as Record<number, string> : {}
+    const newAnswer = { ...currentAnswer, [position]: value }
     onAnswerChange(newAnswer)
   }
 
+  const userAnswerObj = (typeof userAnswer === 'object' && userAnswer !== null) ? userAnswer as Record<number, string> : {}
+
   // Parse the text to identify blanks
   const renderTextWithBlanks = () => {
-    let text = question.text
+    const text = question.text
     const blanks = question.blanks || []
     
     return (
@@ -431,13 +447,13 @@ function FillInBlankQuestion({ question, userAnswer, onAnswerChange, showFeedbac
             {index < blanks.length && (
               <input
                 type="text"
-                value={userAnswer?.[blanks[index].position] || ''}
+                value={userAnswerObj[blanks[index].position] || ''}
                 onChange={(e) => handleBlankChange(blanks[index].position, e.target.value)}
                 disabled={showFeedback}
                 className={`inline-block mx-1 px-2 py-1 border-b-2 bg-transparent text-center min-w-[100px] ${
                   showFeedback
                     ? (() => {
-                        const userInput = userAnswer?.[blanks[index].position]?.toLowerCase().trim()
+                        const userInput = userAnswerObj[blanks[index].position]?.toLowerCase().trim()
                         const correctAnswer = blanks[index].correct_answer.toLowerCase().trim()
                         const alternatives = blanks[index].alternatives?.map((alt: string) => alt.toLowerCase().trim()) || []
                         const isCorrect = userInput === correctAnswer || alternatives.includes(userInput)

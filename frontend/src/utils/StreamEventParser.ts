@@ -1,6 +1,6 @@
 interface StreamEvent {
   type: 'metadata' | 'text' | 'complete' | 'research_start' | 'research_progress' | 'generation_start' | 'content' | 'progress' | 'error'
-  data: any
+  data: unknown
   sequence?: number
   timestamp?: string
 }

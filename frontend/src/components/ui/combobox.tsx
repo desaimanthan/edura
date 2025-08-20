@@ -139,7 +139,7 @@ export function Combobox({
                 onClick={handleCreateNew}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                <span className="flex-1">{createText} "{searchValue}"</span>
+                <span className="flex-1">{createText} &ldquo;{searchValue}&rdquo;</span>
               </div>
             )}
           </div>

@@ -199,9 +199,9 @@ Respond with JSON only (no markdown, no extra text):
                     'workflow_action': 'JUMP_TO_STEP',
                     'target_workflow': 'course_creation',
                     'target_step': 'content_creation',
-                    'target_agent': 'material_content_generator',  # ✅ Fixed: Route to material_content_generator for content creation
+                    'target_agent': 'course_structure',  # ✅ Fixed: Route to course_structure first to process approval, then auto-trigger content generation
                     'confidence': 'high',
-                    'reasoning': 'Validation override - detected approval message in structure approval context, routing to material_content_generator for content creation'
+                    'reasoning': 'Validation override - detected approval message in structure approval context, routing to course_structure to process approval and start content creation'
                 })
                 return result
             elif any(word in message_lower for word in ['modify', 'change', 'modify structure', 'change structure']):
@@ -243,9 +243,9 @@ Respond with JSON only (no markdown, no extra text):
                 'workflow_action': 'JUMP_TO_STEP',
                 'target_workflow': 'course_creation',
                 'target_step': 'content_creation',
-                'target_agent': 'material_content_generator',  # ✅ Fixed: Route to material_content_generator for content creation
+                'target_agent': 'course_structure',  # ✅ Fixed: Route to course_structure first to process approval, then auto-trigger content generation
                 'confidence': 'high',
-                'reasoning': 'Validation override - detected explicit content creation approval message, routing to material_content_generator'
+                'reasoning': 'Validation override - detected explicit content creation approval message, routing to course_structure to process approval and start content creation'
             })
             return result
         
@@ -321,9 +321,9 @@ Respond with JSON only (no markdown, no extra text):
                 'workflow_action': 'JUMP_TO_STEP',
                 'target_workflow': 'course_creation',
                 'target_step': 'content_creation',
-                'target_agent': 'material_content_generator',  # ✅ Fixed: Route to material_content_generator for content creation
+                'target_agent': 'course_structure',  # ✅ Fixed: Route to course_structure first to process approval, then auto-trigger content generation
                 'confidence': 'high',
-                'reasoning': 'Fallback analysis - detected approval message in structure approval context, routing to material_content_generator for content creation'
+                'reasoning': 'Fallback analysis - detected approval message in structure approval context, routing to course_structure to process approval and start content creation'
             }
         
         # Handle modification requests in approval context
@@ -345,9 +345,9 @@ Respond with JSON only (no markdown, no extra text):
                 'workflow_action': 'JUMP_TO_STEP',
                 'target_workflow': 'course_creation',
                 'target_step': 'content_creation',
-                'target_agent': 'material_content_generator',  # ✅ Fixed: Route to material_content_generator for content creation
+                'target_agent': 'course_structure',  # ✅ Fixed: Route to course_structure first to process approval, then auto-trigger content generation
                 'confidence': 'high',
-                'reasoning': 'Fallback analysis - detected explicit content creation approval message, routing to material_content_generator'
+                'reasoning': 'Fallback analysis - detected explicit content creation approval message, routing to course_structure to process approval and start content creation'
             }
         
         # Natural language slide targeting patterns (fallback)

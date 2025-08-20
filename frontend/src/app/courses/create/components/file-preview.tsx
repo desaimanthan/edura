@@ -131,8 +131,8 @@ const TrueWYSIWYGEditor = ({
 }) => {
   const [markdownContent, setMarkdownContent] = useState(content)
   const [hasChanges, setHasChanges] = useState(false)
-  const editorRef = useRef<any>(null)
-  const viewerRef = useRef<any>(null)
+  const editorRef = useRef<{ getInstance: () => { setMarkdown: (content: string) => void; getMarkdown: () => string } } | null>(null)
+  const viewerRef = useRef<{ getInstance: () => { setMarkdown: (content: string, sanitize?: boolean) => void; setHTML: (content: string) => void; getElement: () => HTMLElement } } | null>(null)
   const viewerContainerRef = useRef<HTMLDivElement>(null)
   const [highlightedContent, setHighlightedContent] = useState<string>('')
   const [processedHighlightingId, setProcessedHighlightingId] = useState<string>('')
@@ -152,7 +152,7 @@ const TrueWYSIWYGEditor = ({
       const loaderPattern = /<div id="research-loader"[\s\S]*?<\/div>/gi
       const stylePattern = /<style>[\s\S]*?<\/style>/gi
       
-      let actualContent = contentAfterHeading
+        const actualContent = contentAfterHeading
         .replace(progressPattern, '')
         .replace(loaderPattern, '')
         .replace(stylePattern, '')
@@ -734,7 +734,7 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
 
   // Function to fetch assessment title for header display
   const fetchAssessmentTitle = async (selectedFile: FileData) => {
-    if (!isAssessmentFile(selectedFile.name, selectedFile.status, (selectedFile as any).materialType, selectedFile.materialId)) {
+    if (!isAssessmentFile(selectedFile.name, selectedFile.status, (selectedFile as FileData & { materialType?: string }).materialType, selectedFile.materialId)) {
       setAssessmentTitle("")
       return
     }
@@ -750,7 +750,7 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
       }
 
       // Extract material ID from the selected file - use materialId if available, otherwise fallback
-      const materialId = (selectedFile as any).materialId || selectedFile.id || selectedFile.name
+      const materialId = (selectedFile as FileData & { materialType?: string; materialId?: string }).materialId || selectedFile.id || selectedFile.name
       
       // Check if we have a valid MongoDB ObjectId
       if (!materialId || typeof materialId !== 'string' || materialId.length !== 24) {
@@ -790,20 +790,20 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
   useEffect(() => {
     if (selectedFile) {
       // First, immediately set the title from displayTitle if available
-      if (selectedFile.displayTitle && isAssessmentFile(selectedFile.name, selectedFile.status, (selectedFile as any).materialType, selectedFile.materialId)) {
+      if (selectedFile.displayTitle && isAssessmentFile(selectedFile.name, selectedFile.status, (selectedFile as FileData & { materialType?: string }).materialType, selectedFile.materialId)) {
         setAssessmentTitle(selectedFile.displayTitle)
       } else {
         setAssessmentTitle("")
       }
       
       // Then optionally fetch from API as backup (only if displayTitle is not available)
-      if (!selectedFile.displayTitle && isAssessmentFile(selectedFile.name, selectedFile.status, (selectedFile as any).materialType, selectedFile.materialId)) {
+      if (!selectedFile.displayTitle && isAssessmentFile(selectedFile.name, selectedFile.status, (selectedFile as FileData & { materialType?: string }).materialType, selectedFile.materialId)) {
         fetchAssessmentTitle(selectedFile)
       }
     } else {
       setAssessmentTitle("")
     }
-  }, [selectedFile?.id, selectedFile?.name, selectedFile?.status, selectedFile?.displayTitle, (selectedFile as any)?.materialId])
+  }, [selectedFile?.id, selectedFile?.name, selectedFile?.status, selectedFile?.displayTitle, (selectedFile as FileData & { materialId?: string })?.materialId])
 
   // Function to extract JSON from content that might be wrapped in markdown
   const extractJsonFromContent = (content: string): string | null => {
@@ -895,7 +895,7 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
       
       // Determine format based on content
       let format = 'multiple_choice'
-      let options: any[] = []
+      let options: Array<{ id: string; text: string; correct: boolean }> = []
       let correctAnswer = ''
       
       if (lowerContent.includes('true or false')) {
@@ -1297,7 +1297,7 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
         }
         
         // Check if this is assessment content that has been properly generated and has a valid materialId
-        if (selectedFile.content && isAssessmentFile(selectedFile.name, selectedFile.status, (selectedFile as any).materialType, selectedFile.materialId)) {
+        if (selectedFile.content && isAssessmentFile(selectedFile.name, selectedFile.status, (selectedFile as FileData & { materialType?: string }).materialType, selectedFile.materialId)) {
           // Use AssessmentFromDatabase only for completed assessment files with valid materialId
           return <AssessmentFromDatabase selectedFile={selectedFile} />
         }

@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Send, Bot, User, Sparkles, Upload, Building2, Check, Edit3 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import dynamic from "next/dynamic"
-import { StreamEventParser } from "@/utils/StreamEventParser"
 import { courseFileOperations } from "@/lib/courseFileStore"
 
 // Simple markdown renderer for chat messages
@@ -54,7 +52,7 @@ interface ChatInterfaceProps {
   courseId?: string
   courseName?: string
   onCourseCreated?: (courseId: string, courseName: string) => void
-  initialMessages?: any[]
+  initialMessages?: Array<Record<string, unknown>>
   onCurriculumStreaming?: (courseId: string, focus?: string, modificationType?: string) => Promise<void>
   successMessage?: string
   successMessageTimestamp?: number
@@ -63,9 +61,7 @@ interface ChatInterfaceProps {
 
 export function ChatInterface({ 
   courseId, 
-  courseName, 
   onCourseCreated, 
-  initialMessages, 
   onCurriculumStreaming, 
   successMessage, 
   successMessageTimestamp 
@@ -85,8 +81,6 @@ export function ChatInterface({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const eventSourceRef = useRef<EventSource | null>(null)
-  const router = useRouter()
 
   // Helper function to check if message should show quick actions
   const shouldShowQuickActions = useCallback((content: string) => {
@@ -176,7 +170,7 @@ export function ChatInterface({
           if (response.ok) {
             await handleStreamingResponse(response, null)
           }
-        } catch (error) {
+        } catch {
           // Failed to trigger welcome message
         }
       }
@@ -224,7 +218,13 @@ export function ChatInterface({
 
       if (response.ok) {
         const messagesData = await response.json()
-        const formattedMessages: Message[] = messagesData.map((msg: any) => ({
+        const formattedMessages: Message[] = messagesData.map((msg: {
+          _id?: string;
+          id?: string;
+          content: string;
+          role: string;
+          timestamp: string;
+        }) => ({
           id: msg._id || msg.id,
           content: msg.content,
           sender: msg.role === 'assistant' ? 'ai' : 'user',
@@ -255,7 +255,7 @@ export function ChatInterface({
           setShowUploadInterface(true)
         }
       }
-    } catch (error) {
+    } catch {
       setMessages([])
     } finally {
       setIsLoadingMessages(false)
@@ -281,7 +281,7 @@ export function ChatInterface({
         }
         return result.course_id
       }
-    } catch (error) {
+    } catch {
       // Failed to create draft course
     }
     return null
@@ -327,7 +327,7 @@ export function ChatInterface({
         if (storedContext) {
           workflowContext = JSON.parse(storedContext)
         }
-      } catch (error) {
+      } catch {
         // Failed to parse stored workflow context
       }
 
@@ -337,7 +337,7 @@ export function ChatInterface({
       const isMaterialContentRequest = detectMaterialContentRequest(messageContent, workflowContext)
       
       let endpoint: string
-      let requestBody: any
+      let requestBody: Record<string, unknown>
       
       if (isMaterialContentRequest && targetCourseId) {
         endpoint = `http://localhost:8000/courses/${targetCourseId}/chat-material-content`
@@ -389,7 +389,7 @@ export function ChatInterface({
   }
 
   // Helper function to detect material content generation requests
-  const detectMaterialContentRequest = (message: string, workflowContext: any): boolean => {
+  const detectMaterialContentRequest = (message: string, workflowContext: Record<string, unknown> | null): boolean => {
     const lowerMessage = message.toLowerCase()
     
     // Check for explicit material content generation patterns
@@ -404,8 +404,9 @@ export function ChatInterface({
     ]
     
     // Check for workflow context indicating content generation step
-    const isContentGenerationStep = workflowContext?.workflowState?.current_step === 'content_structure_generation' ||
-                                   workflowContext?.workflowState?.current_step === 'material_content_generation'
+    const workflowState = workflowContext?.workflowState as { current_step?: string } | undefined
+    const isContentGenerationStep = workflowState?.current_step === 'content_structure_generation' ||
+                                   workflowState?.current_step === 'material_content_generation'
     
     // Check for approval messages that should continue with material content
     const isApprovalMessage = lowerMessage.includes('approve and continue') ||
@@ -555,19 +556,20 @@ export function ChatInterface({
                 }
 
                 // Handle function results
-                const researchResult = (functionResults as any).research_conducted
-                const generationResult = (functionResults as any).curriculum_generated || 
-                                       (functionResults as any).course_design_generated
-                const modificationResult = (functionResults as any).course_design_modified
-                const contentStructureResult = (functionResults as any).structure_generated
-                const contentCreationResult = (functionResults as any).content_creation_started
-                const contentApprovedResult = (functionResults as any).content_approved
+                const functionResultsTyped = functionResults as Record<string, unknown>
+                const researchResult = functionResultsTyped.research_conducted as Record<string, unknown>
+                const generationResult = (functionResultsTyped.curriculum_generated || 
+                                       functionResultsTyped.course_design_generated) as Record<string, unknown>
+                const modificationResult = functionResultsTyped.course_design_modified as Record<string, unknown>
+                const contentStructureResult = functionResultsTyped.structure_generated as Record<string, unknown>
+                const contentCreationResult = functionResultsTyped.content_creation_started as Record<string, unknown>
+                const contentApprovedResult = functionResultsTyped.content_approved as Record<string, unknown>
                 
                 // Handle research generation
                 if (researchResult && researchResult.streaming && onCurriculumStreaming) {
                   try {
-                    await onCurriculumStreaming(researchResult.course_id, researchResult.focus_area, 'research')
-                  } catch (error) {
+                    await onCurriculumStreaming(researchResult.course_id as string, researchResult.focus_area as string, 'research')
+                  } catch {
                     // Error in research streaming
                   }
                 }
@@ -575,8 +577,8 @@ export function ChatInterface({
                 // Handle course design generation
                 if (generationResult && generationResult.streaming && onCurriculumStreaming) {
                   try {
-                    await onCurriculumStreaming(generationResult.course_id, generationResult.focus)
-                  } catch (error) {
+                    await onCurriculumStreaming(generationResult.course_id as string, generationResult.focus as string)
+                  } catch {
                     // Error in curriculum streaming callback
                   }
                 }
@@ -584,8 +586,8 @@ export function ChatInterface({
                 // Handle course design modification
                 if (modificationResult && modificationResult.streaming && onCurriculumStreaming) {
                   try {
-                    await onCurriculumStreaming(modificationResult.course_id, modificationResult.modification_request, 'modification')
-                  } catch (error) {
+                    await onCurriculumStreaming(modificationResult.course_id as string, modificationResult.modification_request as string, 'modification')
+                  } catch {
                     // Error in course design modification callback
                   }
                 }
@@ -593,8 +595,8 @@ export function ChatInterface({
                 // Handle content structure generation
                 if (contentStructureResult && contentStructureResult.streaming) {
                   try {
-                    await handleContentStructureStreaming(contentStructureResult.course_id)
-                  } catch (error) {
+                    await handleContentStructureStreaming(contentStructureResult.course_id as string)
+                  } catch {
                     // Error in content structure streaming
                   }
                 }
@@ -608,16 +610,17 @@ export function ChatInterface({
                 }
                 
                 // CRITICAL FIX: Handle auto-generation of specific material content
-                const contentGenerationResult = (functionResults as any).content_generation_started
+                const contentGenerationResult = functionResultsTyped.content_generation_started as Record<string, unknown>
                 if (contentGenerationResult && contentGenerationResult.auto_generate && contentGenerationResult.next_material) {
                   try {
                     // Automatically trigger content generation for the specific material
+                    const nextMaterial = contentGenerationResult.next_material as Record<string, unknown>
                     await handleMaterialContentGeneration(
-                      contentGenerationResult.next_material.id,
-                      contentGenerationResult.next_material.title,
+                      nextMaterial.id as string,
+                      nextMaterial.title as string,
                       currentCourseId || courseId
                     )
-                  } catch (error) {
+                  } catch {
                     // Auto-generation failed
                   }
                 }
@@ -628,9 +631,10 @@ export function ChatInterface({
                     console.log('Content approved, continuing to next material:', contentApprovedResult.next_material)
                     
                     // Show approval success message
+                    const nextMaterial = contentApprovedResult.next_material as Record<string, unknown>
                     const approvalMessage: Message = {
                       id: (Date.now() + 2).toString(),
-                      content: `✅ **Content Approved!**\n\n🔄 **Moving to Next Material:**\n- **Title:** ${contentApprovedResult.next_material?.title || 'Next Material'}\n- **Type:** ${contentApprovedResult.next_material?.material_type || 'Content'}\n\n*Content generation will continue automatically...*`,
+                      content: `✅ **Content Approved!**\n\n🔄 **Moving to Next Material:**\n- **Title:** ${nextMaterial?.title || 'Next Material'}\n- **Type:** ${nextMaterial?.material_type || 'Content'}\n\n*Content generation will continue automatically...*`,
                       sender: 'ai',
                       timestamp: new Date()
                     }
@@ -642,10 +646,10 @@ export function ChatInterface({
                     
                     // Continue with next material generation automatically
                     // The backend should handle this automatically, but we can trigger it if needed
-                    if (contentApprovedResult.next_material?.id) {
+                    if (nextMaterial?.id) {
                       await handleMaterialContentGeneration(
-                        contentApprovedResult.next_material.id,
-                        contentApprovedResult.next_material.title,
+                        nextMaterial.id as string,
+                        nextMaterial.title as string,
                         currentCourseId || courseId
                       )
                     }
@@ -655,24 +659,24 @@ export function ChatInterface({
                 }
 
                 // CRITICAL FIX: Handle auto-trigger completion from ConversationOrchestrator
-                const autoTriggerResult = (functionResults as any).auto_trigger
+                const autoTriggerResult = functionResultsTyped.auto_trigger as Record<string, unknown>
                 if (autoTriggerResult && autoTriggerResult.type === 'content_creation') {
                   try {
                     // Automatically connect to MaterialContentGeneratorAgent streaming endpoint
                     await handleMaterialContentGenerationStreaming(currentCourseId || courseId)
-                  } catch (error) {
+                  } catch {
                     // Failed to connect to material content streaming
                   }
                 }
 
                 // Handle course creation
-                if ((functionResults as any).course_created && onCourseCreated) {
+                if (functionResultsTyped.course_created && onCourseCreated) {
                   try {
-                    const courseCreatedResult = (functionResults as any).course_created
+                    const courseCreatedResult = functionResultsTyped.course_created as Record<string, unknown>
                     
                     // Set course ID in file store first
                     if (courseCreatedResult.course_id) {
-                      courseFileOperations.setCourseId(courseCreatedResult.course_id)
+                      courseFileOperations.setCourseId(courseCreatedResult.course_id as string)
                     }
                     
                     // Extract cover image URLs and update file store immediately
@@ -680,19 +684,21 @@ export function ChatInterface({
                         courseCreatedResult.cover_image_medium_url || courseCreatedResult.cover_image_small_url) {
                       
                       // Use the first available URL (prioritize large, then medium, then small, then generic)
-                      const coverImageUrl = courseCreatedResult.cover_image_large_url || 
-                                          courseCreatedResult.cover_image_url || 
-                                          courseCreatedResult.cover_image_medium_url || 
-                                          courseCreatedResult.cover_image_small_url
+                      const coverImageUrl = (courseCreatedResult.cover_image_large_url as string) || 
+                                          (courseCreatedResult.cover_image_url as string) || 
+                                          (courseCreatedResult.cover_image_medium_url as string) || 
+                                          (courseCreatedResult.cover_image_small_url as string)
                       
                       // Add cover image to file store immediately
-                      courseFileOperations.upsertFile('/cover-image.png', {
-                        fileType: 'image',
-                        url: coverImageUrl,
-                        status: 'saved',
-                        source: 'r2',
-                        createdAt: Date.now()
-                      })
+                      if (coverImageUrl) {
+                        courseFileOperations.upsertFile('/cover-image.png', {
+                          fileType: 'image',
+                          url: coverImageUrl,
+                          status: 'saved',
+                          source: 'r2',
+                          createdAt: Date.now()
+                        })
+                      }
                       
                       // Force refresh to ensure UI updates
                       courseFileOperations.forceRefreshCourseFiles()
@@ -703,7 +709,7 @@ export function ChatInterface({
                     setShowQuickActions(true)
                     
                     const token = localStorage.getItem('auth_token')
-                    const courseResponse = await fetch(`http://localhost:8000/courses/${data.course_id || courseId}`, {
+                    const courseResponse = await fetch(`http://localhost:8000/courses/${courseCreatedResult.course_id || courseId}`, {
                       headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -713,13 +719,13 @@ export function ChatInterface({
                       const courseData = await courseResponse.json()
                       onCourseCreated(courseData._id, courseData.name)
                     }
-                  } catch (error) {
-                    // Failed to get course data
-                  }
+                    } catch {
+                      // Failed to get course data
+                    }
                 }
                 break
               }
-            } catch (e) {
+            } catch {
               // Failed to parse SSE data
             }
           }
@@ -781,7 +787,7 @@ export function ChatInterface({
       } else {
         throw new Error('Failed to send message')
       }
-    } catch (error) {
+    } catch {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: "I apologize, but I'm experiencing some technical difficulties. Please try again in a moment.",
@@ -846,7 +852,7 @@ export function ChatInterface({
       } else {
         throw new Error('Failed to send message')
       }
-    } catch (error) {
+    } catch {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: "I apologize, but I'm experiencing some technical difficulties. Please try again in a moment.",
@@ -903,7 +909,7 @@ export function ChatInterface({
       } else {
         throw new Error('Failed to send message')
       }
-    } catch (error) {
+    } catch {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: "I apologize, but I'm experiencing some technical difficulties. Please try again in a moment.",
@@ -957,7 +963,7 @@ export function ChatInterface({
       } else {
         throw new Error('Failed to generate course structure')
       }
-    } catch (error) {
+    } catch {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: "I apologize, but I'm experiencing some technical difficulties generating the course structure. Please try again in a moment.",
@@ -1003,7 +1009,7 @@ export function ChatInterface({
       } else {
         throw new Error('Upload failed')
       }
-    } catch (error) {
+    } catch {
       const errorMessage: Message = {
         id: Date.now().toString(),
         content: `❌ Upload failed. Please try again or contact support if the problem persists.`,
@@ -1103,7 +1109,7 @@ export function ChatInterface({
     }
   }
 
-  const handleResearchStreaming = async (courseId: string, focusArea?: string) => {
+  const handleResearchStreaming = async (courseId: string, focusArea: string) => {
     // Don't add a duplicate start message - the initial chat response already shows it
     
     try {
@@ -1179,7 +1185,7 @@ export function ChatInterface({
                   setMessages(prev => [...prev, errorMessage])
                   break
                 }
-              } catch (e) {
+              } catch {
                 // Failed to parse research event
               }
             }
@@ -1319,7 +1325,7 @@ export function ChatInterface({
                   setMessages(prev => [...prev, errorMessage])
                   break
                 }
-              } catch (e) {
+              } catch {
                 // Failed to parse MaterialContentGenerator event
               }
             }
@@ -1423,9 +1429,9 @@ export function ChatInterface({
                   try {
                     const { courseFileOperations } = await import('@/lib/courseFileStore')
                     await courseFileOperations.loadContentMaterials(courseId)
-                  } catch (error) {
-                    // Failed to reload content materials
-                  }
+                } catch {
+                  // Failed to reload content materials
+                }
                   
                   // Show success message and trigger approval buttons
                   const completionMessage: Message = {
@@ -1448,7 +1454,7 @@ export function ChatInterface({
                   setMessages(prev => [...prev, errorMessage])
                   break
                 }
-              } catch (e) {
+              } catch {
                 // Failed to parse content structure event
               }
             }
