@@ -4,7 +4,31 @@
  */
 
 // Get the API base URL from environment variables
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Ensure HTTPS in production
+const getApiBaseUrl = () => {
+  const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  
+  // Debug logging to help identify the issue
+  if (typeof window !== 'undefined') {
+    console.log('🔧 API Config Debug:', {
+      NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+      NODE_ENV: process.env.NODE_ENV,
+      finalUrl: url,
+      isProduction: process.env.NODE_ENV === 'production'
+    });
+  }
+  
+  // Force HTTPS in production if not localhost
+  if (process.env.NODE_ENV === 'production' && url.startsWith('http://') && !url.includes('localhost')) {
+    const httpsUrl = url.replace('http://', 'https://');
+    console.log('🔒 Converting HTTP to HTTPS:', url, '→', httpsUrl);
+    return httpsUrl;
+  }
+  
+  return url;
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 /**
  * API endpoint builder
