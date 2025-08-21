@@ -9,6 +9,7 @@ import { ImageWithFallback } from "@/components/figma/ImageWithFallback"
 import Link from "next/link"
 import { CheckCircle, Clock, Users, BookOpen, Zap, TrendingUp, ArrowRight, Star, Sparkles, Brain, Target, Rocket, Award, Globe, Play } from "lucide-react"
 import { useAuth } from "@/components/providers/auth-provider"
+import { FeaturedCourses } from "@/components/sections/FeaturedCourses"
 
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth()
@@ -45,6 +46,7 @@ export default function Home() {
             </Link>
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Features</a>
+              <Link href="/courses/catalog" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Courses</Link>
               <a href="#benefits" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Benefits</a>
               <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Pricing</a>
               <Link href="/auth/signin">
@@ -322,6 +324,12 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Featured Courses Section */}
+      <FeaturedCourses onCourseClick={(courseId) => {
+        // Navigate to course detail page
+        router.push(`/courses/${courseId}`)
+      }} />
+
       {/* Testimonials - Dark Background */}
       <section className="bg-slate-900 text-white py-20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -424,7 +432,7 @@ export default function Home() {
           <div className="grid md:grid-cols-4 gap-12">
             <div>
               <div className="flex items-center mb-6">
-                <img src="/Edura_club.svg" alt="Edura" className="h-12 w-auto" />
+                <img src="/Edura_club_w.svg" alt="Edura" className="h-12 w-auto" />
               </div>
               <p className="text-white/60 leading-relaxed">
                 Empowering educators with AI to create the most personalized learning experiences.
