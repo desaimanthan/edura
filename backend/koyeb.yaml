@@ -1,0 +1,55 @@
+# Koyeb service configuration for Edura Backend
+name: edura-backend
+type: web
+
+# Build configuration
+build:
+  type: docker
+  dockerfile: Dockerfile
+
+# Service configuration
+services:
+  - name: api
+    type: web
+    instance_type: nano  # Start with nano, can scale up as needed
+    regions:
+      - fra  # Frankfurt region (change as needed)
+    scaling:
+      min: 1
+      max: 3
+    ports:
+      - port: 8000
+        protocol: http
+    
+    # Health check configuration
+    health_check:
+      http:
+        path: /health
+        port: 8000
+      grace_period: 30s
+      interval: 10s
+      restart_limit: 3
+      timeout: 5s
+    
+    # Environment variables (set these in Koyeb dashboard)
+    env:
+      - name: PORT
+        value: "8000"
+      - name: HOST
+        value: "0.0.0.0"
+      # Add other environment variables in Koyeb dashboard:
+      # MONGODB_URI, JWT_SECRET_KEY, GOOGLE_CLIENT_ID, etc.
+
+# Domain configuration (optional)
+# domains:
+#   - name: api.yourdomain.com
+#     type: custom
+
+# Auto-deploy configuration
+auto_deploy:
+  branch: main  # Change to your main branch name
+  
+# Resource limits
+resources:
+  cpu: 0.1
+  memory: 512Mi
