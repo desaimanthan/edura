@@ -146,7 +146,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
       }
 
       // First restore workflow context to determine current state
-      const workflowResponse = await fetch(`http://localhost:8000/courses/${resolvedParams.courseId}/restore-workflow`, {
+      const workflowResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${resolvedParams.courseId}/restore-workflow`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -265,7 +265,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
     setTimeout(async () => {
       try {
         const token = localStorage.getItem('auth_token')
-        const courseResponse = await fetch(`http://localhost:8000/courses/${courseId}`, {
+        const courseResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -337,7 +337,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
       
-      const response = await fetch(`http://localhost:8000/courses/${courseId}/${endpoint}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}/${endpoint}`, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify(requestBody),
@@ -367,7 +367,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
         if (isModification) {
           try {
             const token = localStorage.getItem('auth_token')
-            const courseResponse = await fetch(`http://localhost:8000/courses/${courseId}`, {
+            const courseResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
@@ -598,7 +598,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
                       const refreshCourseDataForResearch = async (retryCount = 0) => {
                         try {
                           const token = localStorage.getItem('auth_token')
-                          const courseResponse = await fetch(`http://localhost:8000/courses/${resolvedParams.courseId}`, {
+                          const courseResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${resolvedParams.courseId}`, {
                             headers: {
                               'Authorization': `Bearer ${token}`,
                               'Content-Type': 'application/json'
@@ -706,7 +706,7 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
                       const refreshCourseData = async (retryCount = 0) => {
                         try {
                           const token = localStorage.getItem('auth_token')
-                          const courseResponse = await fetch(`http://localhost:8000/courses/${resolvedParams.courseId}`, {
+                          const courseResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${resolvedParams.courseId}`, {
                             headers: {
                               'Authorization': `Bearer ${token}`,
                               'Content-Type': 'application/json'
