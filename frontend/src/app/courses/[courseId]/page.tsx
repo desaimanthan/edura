@@ -25,7 +25,7 @@ export default function CourseDetail({ params }: CourseDetailProps) {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Course Not Found</h1>
-          <p className="text-gray-600 mb-6">The course you're looking for doesn't exist.</p>
+          <p className="text-gray-600 mb-6">The course you&apos;re looking for doesn&apos;t exist.</p>
           <Link href="/courses/catalog">
             <Button>Browse All Courses</Button>
           </Link>
@@ -46,8 +46,8 @@ export default function CourseDetail({ params }: CourseDetailProps) {
             <div className="hidden md:flex items-center space-x-8">
               <Link href="/" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Home</Link>
               <Link href="/courses/catalog" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Courses</Link>
-              <a href="/#features" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Features</a>
-              <a href="/#pricing" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Pricing</a>
+              <Link href="/" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Features</Link>
+              <Link href="/" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Pricing</Link>
               <Link href="/auth/signin">
                 <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">Sign In</Button>
               </Link>
@@ -210,7 +210,7 @@ export default function CourseDetail({ params }: CourseDetailProps) {
                 <TabsContent value="overview" className="space-y-8">
                   <Card>
                     <CardHeader>
-                      <CardTitle>What you'll learn</CardTitle>
+                      <CardTitle>What you&apos;ll learn</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid md:grid-cols-2 gap-4">
@@ -350,7 +350,7 @@ export default function CourseDetail({ params }: CourseDetailProps) {
                         {
                           name: "Mike Chen",
                           rating: 5,
-                          comment: "Best ML course I've taken. Great balance of theory and practical application. Highly recommend!",
+                          comment: "Best ML course I&apos;ve taken. Great balance of theory and practical application. Highly recommend!",
                           date: "1 month ago"
                         },
                         {

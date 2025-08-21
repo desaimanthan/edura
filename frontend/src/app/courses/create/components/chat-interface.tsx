@@ -118,30 +118,24 @@ export function ChatInterface({
             lowerContent.includes("would you like to approve"))
   }, [])
 
-  // Helper function to check if message should show material content approval actions
+  // Helper function to check if message should show material content approval actions - SIMPLIFIED
   const shouldShowMaterialContentApprovalActions = useCallback((content: string) => {
     const lowerContent = content.toLowerCase()
-    // Check for material content generation completion messages (including assessments)
-    const hasContentGenerated = lowerContent.includes("content generated successfully") || 
-                                lowerContent.includes("material content generated") ||
-                                lowerContent.includes("slide content generated") ||
-                                lowerContent.includes("assessment generated successfully") ||
-                                lowerContent.includes("content generation completed")
     
-    const hasApprovalPrompt = lowerContent.includes("preview is ready") ||
-                             lowerContent.includes("review the generated content") ||
-                             lowerContent.includes("review the generated assessment") ||
-                             lowerContent.includes("approve & continue") ||
-                             lowerContent.includes("request modifications")
+    // SIMPLIFIED: Check for the new streamlined messages from Agent 5
+    const hasGeneratedContent = lowerContent.includes("generated content for") && 
+                               lowerContent.includes("**") // Has bold formatting for title
     
-    // CRITICAL FIX: Also check for diff preview messages from Agent 5 targeted edits
-    const isDiffPreviewMessage = (lowerContent.includes("preview the changes") && 
-                                 lowerContent.includes("choose:") &&
-                                 (lowerContent.includes("approve & apply") || lowerContent.includes("✅ approve")) &&
-                                 (lowerContent.includes("cancel") || lowerContent.includes("❌ cancel"))) ||
-                                (lowerContent.includes("diff preview shows exactly what will be modified"))
+    // Check for diff preview messages
+    const isDiffPreviewMessage = lowerContent.includes("preview changes for") ||
+                                (lowerContent.includes("preview") && lowerContent.includes("changes"))
     
-    return (hasContentGenerated && hasApprovalPrompt) || isDiffPreviewMessage
+    // Check for "All Done" message - should NOT show approval buttons
+    const isAllDone = lowerContent.includes("all done") || 
+                     lowerContent.includes("you can publish this course now")
+    
+    // Show approval buttons only if content was generated and it's not the final "All Done" message
+    return (hasGeneratedContent || isDiffPreviewMessage) && !isAllDone
   }, [])
 
   // Helper function to check if message should show course structure generation button
@@ -566,9 +560,17 @@ export function ChatInterface({
                     setShowContentApprovalActions(true)
                   }
                   
-                  // Check for material content approval actions during streaming
+                  // SIMPLIFIED: Check for material content approval actions during streaming
+                  // Only show if not "All Done" message
                   if (shouldShowMaterialContentApprovalActions(streamedContent)) {
-                    setShowMaterialContentApprovalActions(true)
+                    const isAllDone = streamedContent.toLowerCase().includes("all done") || 
+                                     streamedContent.toLowerCase().includes("you can publish this course now")
+                    if (!isAllDone) {
+                      setShowMaterialContentApprovalActions(true)
+                    } else {
+                      // Hide approval buttons for "All Done" message
+                      setShowMaterialContentApprovalActions(false)
+                    }
                   }
                 }
               } else if (data.type === 'complete') {
@@ -649,37 +651,11 @@ export function ChatInterface({
                   }
                 }
                 
-                // CRITICAL FIX: Handle content approval and continuation
+                // SIMPLIFIED: Handle content approval and continuation
                 if (contentApprovedResult && contentApprovedResult.success && contentApprovedResult.continue_generation) {
-                  try {
-                    console.log('Content approved, continuing to next material:', contentApprovedResult.next_material)
-                    
-                    // Show approval success message
-                    const nextMaterial = contentApprovedResult.next_material as Record<string, unknown>
-                    const approvalMessage: Message = {
-                      id: (Date.now() + 2).toString(),
-                      content: `✅ **Content Approved!**\n\n🔄 **Moving to Next Material:**\n- **Title:** ${nextMaterial?.title || 'Next Material'}\n- **Type:** ${nextMaterial?.material_type || 'Content'}\n\n*Content generation will continue automatically...*`,
-                      sender: 'ai',
-                      timestamp: new Date()
-                    }
-                    
-                    setMessages(prev => [...prev, approvalMessage])
-                    
-                    // Small delay for UI update
-                    await new Promise(resolve => setTimeout(resolve, 1000))
-                    
-                    // Continue with next material generation automatically
-                    // The backend should handle this automatically, but we can trigger it if needed
-                    if (nextMaterial?.id) {
-                      await handleMaterialContentGeneration(
-                        nextMaterial.id as string,
-                        nextMaterial.title as string,
-                        currentCourseId || courseId
-                      )
-                    }
-                  } catch (error) {
-                    console.error('Failed to continue after content approval:', error)
-                  }
+                  // The backend will automatically continue to the next material
+                  // No need to show verbose messages - the next content generation will show its own message
+                  console.log('Content approved, backend will auto-continue to next material')
                 }
 
                 // CRITICAL FIX: Handle auto-trigger completion from ConversationOrchestrator
@@ -899,10 +875,23 @@ export function ChatInterface({
   const handleMaterialContentApprovalAction = async (action: 'approve' | 'modify') => {
     setShowMaterialContentApprovalActions(false)
     
+    // SIMPLIFIED: Show loading state immediately
+    if (action === 'approve') {
+      // Add a loading message for approval
+      const loadingMessage: Message = {
+        id: Date.now().toString(),
+        content: 'Generating content for next slide...',
+        sender: 'ai',
+        timestamp: new Date(),
+        isStreaming: true
+      }
+      setMessages(prev => [...prev, loadingMessage])
+    }
+    
     const actionMessage = action === 'approve' ? 'Approve and continue to next slide' : 'I want to modify this content'
     
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: (Date.now() + 1).toString(),
       content: actionMessage,
       sender: 'user',
       timestamp: new Date()
@@ -943,7 +932,7 @@ export function ChatInterface({
       }
     } catch {
       const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: (Date.now() + 2).toString(),
         content: "I apologize, but I'm experiencing some technical difficulties. Please try again in a moment.",
         sender: 'ai',
         timestamp: new Date()
@@ -1710,7 +1699,7 @@ export function ChatInterface({
               </div>
             )}
 
-            {/* Material Content Approval Action Buttons */}
+            {/* Material Content Approval Action Buttons - SIMPLIFIED */}
             {showMaterialContentApprovalActions && 
              message.sender === 'ai' && 
              index === messages.length - 1 && 
@@ -1720,11 +1709,11 @@ export function ChatInterface({
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={() => handleMaterialContentApprovalAction('approve')}
-                    className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-2 h-auto rounded-lg shadow-sm"
+                    className="flex items-center gap-2 bg-green-600 text-white hover:bg-green-700 text-sm px-4 py-2 h-auto rounded-lg shadow-sm"
                     disabled={isTyping}
                   >
                     <Check className="h-4 w-4" />
-                    Approve & Continue
+                    Approve & Generate Next
                   </Button>
                   <Button
                     onClick={() => handleMaterialContentApprovalAction('modify')}
@@ -1732,7 +1721,7 @@ export function ChatInterface({
                     disabled={isTyping}
                   >
                     <Edit3 className="h-4 w-4" />
-                    Request Changes
+                    Redo
                   </Button>
                 </div>
               </div>

@@ -9,7 +9,15 @@ import { LayoutDashboard, Settings, LogOut, BookOpen } from "lucide-react"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useRouter } from "next/navigation"
 
-const sidebarItems = [
+interface SidebarItem {
+  title: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  requiresApproval?: boolean
+  allowedRoles?: string[]
+}
+
+const sidebarItems: SidebarItem[] = [
   {
     title: "Dashboard",
     href: "/dashboard",
@@ -36,7 +44,7 @@ export function Sidebar() {
   const router = useRouter()
 
   // Helper function to check if user can access a menu item
-  const canAccessMenuItem = (item: any) => {
+  const canAccessMenuItem = (item: SidebarItem) => {
     // Dashboard is always accessible
     if (item.title === "Dashboard") return true;
     

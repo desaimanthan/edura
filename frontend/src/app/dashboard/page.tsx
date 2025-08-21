@@ -148,14 +148,14 @@ export default function Dashboard() {
                     Your Teacher account has been created successfully and is pending admin approval.
                   </p>
                   <p className="text-yellow-700 text-sm">
-                    You will receive an email notification once your account is approved. In the meantime, you can view your profile information but access to teaching features like Courses and Masters is limited.
+                    You&apos;ll receive an email notification once your account is approved. In the meantime, you can view your profile information but access to teaching features like Courses and Masters is limited.
                   </p>
                   <div className="mt-4 p-3 bg-yellow-100 rounded-md">
                     <p className="text-xs text-yellow-800">
                       <strong>What happens next?</strong><br />
                       • An administrator will review your Teacher account request<br />
-                      • You'll receive an email notification with the approval decision<br />
-                      • Once approved, you'll have full access to all teaching features including Courses and Masters
+                      • You&apos;ll receive an email notification with the approval decision<br />
+                      • Once approved, you&apos;ll have full access to all teaching features including Courses and Masters
                     </p>
                   </div>
                 </div>

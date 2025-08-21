@@ -40,8 +40,8 @@ export default function CourseCatalog() {
             <div className="hidden md:flex items-center space-x-8">
               <Link href="/" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Home</Link>
               <Link href="/courses/catalog" className="text-emerald-600 font-medium">Courses</Link>
-              <a href="/#features" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Features</a>
-              <a href="/#pricing" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Pricing</a>
+              <Link href="/" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Features</Link>
+              <Link href="/" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Pricing</Link>
               <Link href="/auth/signin">
                 <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">Sign In</Button>
               </Link>

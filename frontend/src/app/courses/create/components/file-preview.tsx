@@ -671,7 +671,22 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
       console.log('Detected targetedChange in file-preview:', selectedFile.targetedChange)
       
       // CRITICAL FIX: Use the data directly from Agent 5's response
-      const targetedChange = selectedFile.targetedChange as any
+      const targetedChange = selectedFile.targetedChange as {
+        type: string
+        target: string
+        replacement: string
+        description: string
+        originalContent?: string
+        modifiedContent?: string
+        materialTitle?: string
+        materialId?: string
+        coordinates?: {
+          start_line: number
+          end_line: number
+          exact_text_to_replace: string
+          replacement_text: string
+        }
+      }
       
       // Check if we have the required data for diff modal
       if (targetedChange.originalContent && targetedChange.modifiedContent) {
@@ -745,7 +760,10 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
       }
       
       // CRITICAL FIX: Get material ID from targetedChange data
-      const targetedChange = selectedFile.targetedChange as any
+      const targetedChange = selectedFile.targetedChange as {
+        materialId?: string
+        [key: string]: unknown
+      }
       const materialId = targetedChange?.materialId
       
       if (!materialId) {
@@ -831,7 +849,10 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
       }
       
       // CRITICAL FIX: Get material ID from targetedChange data
-      const targetedChange = selectedFile.targetedChange as any
+      const targetedChange = selectedFile.targetedChange as {
+        materialId?: string
+        [key: string]: unknown
+      }
       const materialId = targetedChange?.materialId
       
       if (!materialId) {
