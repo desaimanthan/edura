@@ -64,7 +64,7 @@ export const isDevelopment = process.env.NODE_ENV === 'development';
 /**
  * Debug logging for API calls (only in development)
  */
-export const logApiCall = (method: string, url: string, data?: any) => {
+export const logApiCall = (method: string, url: string, data?: unknown) => {
   if (isDevelopment) {
     console.log(`🌐 API ${method.toUpperCase()}: ${url}`, data ? { data } : '');
   }
