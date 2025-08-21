@@ -183,13 +183,13 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
 
       // Load course and messages in parallel
       const [courseResponse, messagesResponse] = await Promise.all([
-        fetch(`http://localhost:8000/courses/${resolvedParams.courseId}`, {
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${resolvedParams.courseId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         }),
-        fetch(`http://localhost:8000/courses/${resolvedParams.courseId}/messages`, {
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${resolvedParams.courseId}/messages`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
