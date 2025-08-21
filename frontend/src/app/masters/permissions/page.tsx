@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
+import { RouteGuard } from "@/components/auth/route-guard"
 import { Plus, Shield, Edit, Trash2, Tag, Activity, X, Save, ArrowUpDown, Eye, UserPlus, Settings, Crown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -379,18 +380,19 @@ export default function Permissions() {
   }
 
   return (
-    <DashboardLayout 
-      title="Permissions Management" 
-      showBackButton={true}
-      backUrl="/masters"
-      backLabel="Back to Masters"
-      actions={
-        <Button className="flex items-center" onClick={handleCreatePermission}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add New Permission
-        </Button>
-      }
-    >
+    <RouteGuard allowedRoles={["Administrator"]}>
+      <DashboardLayout 
+        title="Permissions Management" 
+        showBackButton={true}
+        backUrl="/masters"
+        backLabel="Back to Masters"
+        actions={
+          <Button className="flex items-center" onClick={handleCreatePermission}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add New Permission
+          </Button>
+        }
+      >
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card key="total-permissions">
@@ -693,6 +695,7 @@ export default function Permissions() {
             </div>
           </div>
         )}
-    </DashboardLayout>
+      </DashboardLayout>
+    </RouteGuard>
   )
 }

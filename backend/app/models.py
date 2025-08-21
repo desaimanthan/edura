@@ -30,6 +30,7 @@ class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
+    intended_role_name: Optional[str] = "Student"  # Role selection from frontend
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -44,6 +45,12 @@ class UserResponse(BaseModel):
     role_name: Optional[str] = None  # Populated role name
     google_id: Optional[str] = None
     avatar: Optional[str] = None
+    # Teacher approval system fields
+    approval_status: Optional[str] = None
+    requested_role_name: Optional[str] = None
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    approval_reason: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -57,6 +64,12 @@ class UserInDB(UserBase):
     google_id: Optional[str] = None
     avatar: Optional[str] = None
     role_id: Optional[PyObjectId] = None  # Single role ID as ObjectId - defaults to Student role
+    # Teacher approval system fields
+    approval_status: Optional[str] = None  # "pending", "approved", "rejected"
+    requested_role_name: Optional[str] = None  # Track what role was requested
+    approved_by: Optional[PyObjectId] = None  # Admin who approved/rejected
+    approved_at: Optional[datetime] = None  # When approval action was taken
+    approval_reason: Optional[str] = None  # Reason for rejection or notes
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -495,3 +508,14 @@ class AssessmentResponseResponse(BaseModel):
     class Config:
         populate_by_name = True
         json_encoders = {ObjectId: str}
+
+# Teacher Approval Models
+class TeacherApprovalAction(BaseModel):
+    action: str  # "approve" or "reject"
+    reason: Optional[str] = None  # Optional reason for rejection or notes
+
+class TeacherApprovalResponse(BaseModel):
+    message: str
+    user_id: str
+    action: str
+    approved_by: str

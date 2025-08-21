@@ -4,12 +4,14 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { Plus, Users, Shield, Edit, Trash2, X, Save, Mail, Calendar, UserCheck, ArrowUpDown } from "lucide-react"
+import { RouteGuard } from "@/components/auth/route-guard"
+import { Plus, Users, Shield, Edit, Trash2, X, Save, Mail, Calendar, UserCheck, ArrowUpDown, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
+import { Textarea } from "@/components/ui/textarea"
 
 // Types
 interface Role {
@@ -29,6 +31,17 @@ interface User {
   is_active: boolean
   created_at: string
   updated_at: string
+  approval_status?: string
+  requested_role_name?: string
+}
+
+interface PendingTeacher {
+  id: string
+  name: string
+  email: string
+  requested_role_name: string
+  created_at: string
+  approval_status: string
 }
 
 export default function UsersManagement() {
@@ -36,6 +49,14 @@ export default function UsersManagement() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [allRoles, setAllRoles] = useState<Role[]>([])
+  
+  // Pending teachers state
+  const [pendingTeachers, setPendingTeachers] = useState<PendingTeacher[]>([])
+  const [pendingLoading, setPendingLoading] = useState(false)
+  const [approvalDrawerOpen, setApprovalDrawerOpen] = useState(false)
+  const [selectedTeacher, setSelectedTeacher] = useState<PendingTeacher | null>(null)
+  const [approvalReason, setApprovalReason] = useState('')
+  const [approving, setApproving] = useState(false)
   
   // Edit drawer state
   const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false)
@@ -293,9 +314,87 @@ export default function UsersManagement() {
     }
   }
 
+  // Fetch pending teachers
+  const fetchPendingTeachers = async () => {
+    try {
+      setPendingLoading(true)
+      const token = localStorage.getItem('auth_token')
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/pending-teachers`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setPendingTeachers(data.pending_teachers || [])
+      }
+    } catch (err) {
+      console.error('Error fetching pending teachers:', err)
+    } finally {
+      setPendingLoading(false)
+    }
+  }
+
+  // Handle teacher approval
+  const handleTeacherApproval = (teacher: PendingTeacher, action: 'approve' | 'reject') => {
+    setSelectedTeacher(teacher)
+    setApprovalReason('')
+    setApprovalDrawerOpen(true)
+  }
+
+  // Submit teacher approval
+  const submitTeacherApproval = async (action: 'approve' | 'reject') => {
+    if (!selectedTeacher) return
+
+    try {
+      setApproving(true)
+      const token = localStorage.getItem('auth_token')
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/approve-teacher/${selectedTeacher.id}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action,
+          reason: approvalReason.trim() || `Teacher account ${action}d by administrator`
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `Failed to ${action} teacher`)
+      }
+
+      const result = await response.json()
+      
+      // Refresh both lists
+      await Promise.all([fetchUsers(), fetchPendingTeachers()])
+      
+      setApprovalDrawerOpen(false)
+      setSelectedTeacher(null)
+      setApprovalReason('')
+      
+      toast.success(result.message)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      toast.error(`Failed to ${action} teacher`, {
+        description: errorMessage,
+      })
+      console.error(`Error ${action}ing teacher:`, err)
+    } finally {
+      setApproving(false)
+    }
+  }
+
   useEffect(() => {
     fetchUsers()
     fetchAllRoles()
+    fetchPendingTeachers()
   }, [])
 
   // Handle sorting
@@ -387,18 +486,19 @@ export default function UsersManagement() {
   }
 
   return (
-    <DashboardLayout 
-      title="Users Management" 
-      showBackButton={true}
-      backUrl="/masters"
-      backLabel="Back to Masters"
-      actions={
-        <Button className="flex items-center" onClick={handleAddUser}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add New User
-        </Button>
-      }
-    >
+    <RouteGuard allowedRoles={["Administrator"]}>
+      <DashboardLayout 
+        title="Users Management" 
+        showBackButton={true}
+        backUrl="/masters"
+        backLabel="Back to Masters"
+        actions={
+          <Button className="flex items-center" onClick={handleAddUser}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add New User
+          </Button>
+        }
+      >
       <>
         {/* Stats Cards */}
         <div key="stats-section" className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -447,6 +547,118 @@ export default function UsersManagement() {
             )
           })}
         </div>
+
+        {/* Pending Teacher Approvals */}
+        {pendingTeachers.length > 0 && (
+          <Card key="pending-teachers-section" className="mb-8">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="h-5 w-5 text-amber-500" />
+                  <CardTitle className="text-lg font-semibold">Pending Teacher Approvals</CardTitle>
+                </div>
+                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                  {pendingTeachers.length} pending
+                </Badge>
+              </div>
+              <CardDescription>
+                Review and approve teacher account requests
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>
+                        <div className="flex items-center space-x-2">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <span>Email</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center space-x-2">
+                          <Shield className="h-4 w-4 text-muted-foreground" />
+                          <span>Requested Role</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center space-x-2">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span>Status</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>Requested</span>
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingTeachers.map((teacher) => (
+                      <TableRow key={teacher.id}>
+                        <TableCell>
+                          <div className="font-medium">{teacher.name}</div>
+                        </TableCell>
+                        <TableCell>
+                          <span>{teacher.email}</span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="outline" 
+                            className="text-xs bg-blue-100 text-blue-800 border-blue-200"
+                          >
+                            {teacher.requested_role_name}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="outline"
+                            className="text-xs bg-amber-100 text-amber-800 border-amber-200"
+                          >
+                            <Clock className="h-3 w-3 mr-1" />
+                            Pending
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">
+                            {new Date(teacher.created_at).toLocaleDateString()}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end space-x-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => handleTeacherApproval(teacher, 'approve')}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Approve
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleTeacherApproval(teacher, 'reject')}
+                            >
+                              <XCircle className="h-4 w-4 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Users Table */}
         <Card key="users-section">
@@ -848,7 +1060,141 @@ export default function UsersManagement() {
             </div>
           </div>
         )}
+
+        {/* Teacher Approval Drawer */}
+        {approvalDrawerOpen && selectedTeacher && (
+          <div className="fixed inset-0 z-50 overflow-hidden">
+            {/* Backdrop */}
+            <div 
+              className="absolute inset-0 bg-black/50 transition-opacity"
+              onClick={() => setApprovalDrawerOpen(false)}
+            />
+            
+            {/* Drawer */}
+            <div className="absolute right-0 top-0 h-full w-[600px] bg-white shadow-xl transform transition-transform">
+              <div className="flex flex-col h-full">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b">
+                  <div>
+                    <h2 className="text-lg font-semibold">Teacher Approval</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Review and approve teacher account request
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setApprovalDrawerOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  {/* Teacher Details */}
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <Users className="h-4 w-4 text-gray-500" />
+                        <span className="font-medium text-gray-900">Teacher Information</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Name:</span>
+                          <div className="font-medium">{selectedTeacher.name}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Email:</span>
+                          <div className="font-medium">{selectedTeacher.email}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Requested Role:</span>
+                          <div className="font-medium">{selectedTeacher.requested_role_name}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Request Date:</span>
+                          <div className="font-medium">{new Date(selectedTeacher.created_at).toLocaleDateString()}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="approval-reason">Approval Reason (Optional)</Label>
+                      <Textarea
+                        id="approval-reason"
+                        value={approvalReason}
+                        onChange={(e) => setApprovalReason(e.target.value)}
+                        placeholder="Enter reason for approval or rejection..."
+                        rows={4}
+                        className="resize-none"
+                      />
+                      <p className="text-xs text-gray-500">
+                        This reason will be recorded in the system for audit purposes.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="border-t p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-muted-foreground">
+                      This action will be recorded in the audit log
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setApprovalDrawerOpen(false)}
+                        disabled={approving}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => submitTeacherApproval('reject')}
+                        disabled={approving}
+                      >
+                        {approving ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
+                            Rejecting...
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Reject
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => submitTeacherApproval('approve')}
+                        disabled={approving}
+                      >
+                        {approving ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Approving...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Approve
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </>
-    </DashboardLayout>
+      </DashboardLayout>
+    </RouteGuard>
   )
 }

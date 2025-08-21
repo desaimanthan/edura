@@ -31,6 +31,11 @@ export interface User {
   role_name?: string;
   google_id?: string;
   avatar?: string;
+  approval_status?: string;
+  requested_role_name?: string;
+  approved_by?: string;
+  approved_at?: string;
+  approval_reason?: string;
   created_at: string;
   updated_at: string;
 }
@@ -39,6 +44,7 @@ export interface AuthResponse {
   id: string;
   email: string;
   name: string;
+  role_name?: string;
   access_token: string;
   token_type: string;
 }
@@ -97,12 +103,22 @@ class AuthService {
     return user;
   }
 
-  async register(name: string, email: string, password: string): Promise<void> {
-    logApiCall('POST', API_ENDPOINTS.AUTH.REGISTER, { name, email });
-    const response = await apiClient.post(API_ENDPOINTS.AUTH.REGISTER, {
+  async register(name: string, email: string, password: string, role?: string): Promise<{ requiresApproval: boolean; message: string }> {
+    const requestData = {
       name,
       email,
       password,
+      intended_role_name: role || 'Student',
+    };
+    
+    console.log('🔍 Auth Service Debug - Register Request:', requestData);
+    logApiCall('POST', API_ENDPOINTS.AUTH.REGISTER, requestData);
+    
+    const response = await apiClient.post(API_ENDPOINTS.AUTH.REGISTER, requestData);
+    
+    console.log('🔍 Auth Service Debug - Register Response:', {
+      status: response.status,
+      data: response.data
     });
 
     // Handle error responses manually
@@ -117,6 +133,12 @@ class AuthService {
     } else if (response.status >= 400) {
       throw new Error('Registration failed. Please try again');
     }
+
+    // Return the response data which includes approval status
+    return {
+      requiresApproval: response.data?.requires_approval || false,
+      message: response.data?.message || 'Account created successfully'
+    };
   }
 
   async getCurrentUser(): Promise<User | null> {
@@ -155,9 +177,12 @@ class AuthService {
     this.clearAuth();
   }
 
-  async getGoogleAuthUrl(): Promise<string> {
-    logApiCall('GET', API_ENDPOINTS.AUTH.GOOGLE_LOGIN);
-    const response = await apiClient.get(API_ENDPOINTS.AUTH.GOOGLE_LOGIN);
+  async getGoogleAuthUrl(role?: string): Promise<string> {
+    const params = role ? `?role=${encodeURIComponent(role)}` : '';
+    const endpoint = `${API_ENDPOINTS.AUTH.GOOGLE_LOGIN}${params}`;
+    
+    logApiCall('GET', endpoint);
+    const response = await apiClient.get(endpoint);
     
     // Handle error responses manually
     if (response.status >= 500) {

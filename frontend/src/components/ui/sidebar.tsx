@@ -19,11 +19,14 @@ const sidebarItems = [
     title: "Courses",
     href: "/courses",
     icon: BookOpen,
+    requiresApproval: true, // Requires approval for teachers, always available for students and administrators
+    allowedRoles: ["Teacher", "Student", "Administrator"], // Teachers, students, and administrators can access
   },
   {
     title: "Masters",
     href: "/masters",
     icon: Settings,
+    allowedRoles: ["Administrator"], // Only administrators can access
   },
 ]
 
@@ -31,6 +34,27 @@ export function Sidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
   const router = useRouter()
+
+  // Helper function to check if user can access a menu item
+  const canAccessMenuItem = (item: any) => {
+    // Dashboard is always accessible
+    if (item.title === "Dashboard") return true;
+    
+    // Check role-based access first
+    if (item.allowedRoles && user?.role_name) {
+      if (!item.allowedRoles.includes(user.role_name)) {
+        return false; // User's role is not in allowed roles
+      }
+    }
+    
+    // For items that require approval (like Courses for Teachers)
+    if (item.requiresApproval && user?.role_name === "Teacher") {
+      // Only allow access if teacher is approved (not pending)
+      return user?.approval_status !== "pending";
+    }
+    
+    return true;
+  }
 
   const handleSignOut = async () => {
     await logout()
@@ -55,24 +79,26 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-4 py-6 border-r border-border">
         <div className="space-y-3">
-          {sidebarItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
-            const Icon = item.icon
+          {sidebarItems
+            .filter(canAccessMenuItem)
+            .map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+              const Icon = item.icon
 
-            return (
-              <Link key={item.href} href={item.href}>
-                <div
-                  className={cn(
-                    "flex items-center space-x-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-100 hover:shadow-sm transition-all duration-200 cursor-pointer mb-2",
-                    isActive && "bg-gray-100 text-gray-900 font-medium shadow-sm"
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="text-sm font-medium">{item.title}</span>
-                </div>
-              </Link>
-            )
-          })}
+              return (
+                <Link key={item.href} href={item.href}>
+                  <div
+                    className={cn(
+                      "flex items-center space-x-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-100 hover:shadow-sm transition-all duration-200 cursor-pointer mb-2",
+                      isActive && "bg-gray-100 text-gray-900 font-medium shadow-sm"
+                    )}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="text-sm font-medium">{item.title}</span>
+                  </div>
+                </Link>
+              )
+            })}
         </div>
       </nav>
 

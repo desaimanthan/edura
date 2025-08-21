@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
+import { RouteGuard } from "@/components/auth/route-guard"
 import { BookOpen, Plus, Users, Clock, Star, Edit, Trash2, Eye } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -249,8 +250,9 @@ export default function Courses() {
   }
 
   return (
-    <DashboardLayout title="Courses" icon={BookOpen}>
-      <div className="flex-1 overflow-y-auto">
+    <RouteGuard requiresApproval={true} allowedRoles={["Teacher", "Student", "Administrator"]}>
+      <DashboardLayout title="Courses" icon={BookOpen}>
+        <div className="flex-1 overflow-y-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Welcome Card */}
         <Card className="col-span-full">
@@ -488,6 +490,7 @@ export default function Courses() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </DashboardLayout>
+      </DashboardLayout>
+    </RouteGuard>
   )
 }

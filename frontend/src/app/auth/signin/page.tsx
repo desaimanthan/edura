@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { useState, Suspense, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 import Link from "next/link"
 import { useAuth } from "@/components/providers/auth-provider"
+import { RoleSelector } from "@/components/auth/RoleSelector"
 import { CheckCircle, Eye, EyeOff, ArrowLeft, Quote } from "lucide-react"
 
 // Component to handle search params with Suspense boundary
@@ -34,19 +35,39 @@ function ErrorHandler() {
 function SignInContent() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [selectedRole, setSelectedRole] = useState("Student")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isClient, setIsClient] = useState(false)
   const router = useRouter()
   const { login, getGoogleAuthUrl } = useAuth()
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  if (!isClient) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+      </div>
+    )
+  }
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
-      await login(email, password)
+      const user = await login(email, password)
       toast.success("Signed in successfully!")
-      router.push("/dashboard")
+      
+      // Admin users always go to dashboard regardless of selected tab
+      if (user.role_name === 'Administrator') {
+        router.push("/dashboard")
+      } else {
+        router.push("/dashboard")
+      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Invalid credentials'
       toast.error(errorMessage)
@@ -58,10 +79,16 @@ function SignInContent() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
     try {
-      // Get the Google auth URL from backend and redirect
-      const authUrl = await getGoogleAuthUrl()
+      console.log('🔍 Signin Debug - Starting Google OAuth with role:', selectedRole)
+      
+      // Get the Google auth URL with the selected role parameter
+      const authUrl = await getGoogleAuthUrl(selectedRole)
+      console.log('🔍 Signin Debug - Got auth URL with role parameter:', authUrl)
+      
+      // Redirect to Google OAuth
       window.location.href = authUrl
     } catch (error) {
+      console.error('🔍 Signin Debug - Google sign-in error:', error)
       toast.error("Google sign-in failed")
       setIsLoading(false)
     }
@@ -156,6 +183,13 @@ function SignInContent() {
             </CardHeader>
             
             <CardContent className="space-y-6 px-0">
+              {/* Role Selection */}
+              <RoleSelector 
+                selectedRole={selectedRole} 
+                onRoleChange={setSelectedRole}
+                showDescription={false}
+              />
+
               {/* Google Sign In */}
               <Button 
                 variant="outline" 

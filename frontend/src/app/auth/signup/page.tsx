@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 import Link from "next/link"
 import { useAuth } from "@/components/providers/auth-provider"
+import { RoleSelector } from "@/components/auth/RoleSelector"
 import { CheckCircle, Eye, EyeOff, ArrowLeft, Star } from "lucide-react"
 
 export default function SignUp() {
@@ -17,10 +18,24 @@ export default function SignUp() {
   const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [selectedRole, setSelectedRole] = useState("Student")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isClient, setIsClient] = useState(false)
   const router = useRouter()
   const { register, login, getGoogleAuthUrl } = useAuth()
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  if (!isClient) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+      </div>
+    )
+  }
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,16 +49,32 @@ export default function SignUp() {
 
     try {
       const fullName = `${firstName} ${lastName}`.trim()
-      await register(fullName, email, password)
-      toast.success("Account created successfully!")
+      console.log('🔍 Signup Debug - Selected Role:', selectedRole)
+      console.log('🔍 Signup Debug - Full Name:', fullName)
+      console.log('🔍 Signup Debug - Email:', email)
       
-      // Automatically sign in after successful registration
-      try {
-        await login(email, password)
-        router.push("/dashboard")
-      } catch {
-        toast.error("Registration successful, but sign-in failed. Please try signing in manually.")
-        router.push("/auth/signin")
+      const result = await register(fullName, email, password, selectedRole)
+      console.log('🔍 Signup Debug - Registration Result:', result)
+      
+      if (result.requiresApproval) {
+        // Teacher account requires approval
+        toast.success(result.message, {
+          duration: 6000,
+          description: "You will receive an email notification once your account is approved."
+        })
+        router.push("/auth/signin?message=pending_approval")
+      } else {
+        // Student account - immediate access
+        toast.success(result.message)
+        
+        // Automatically sign in after successful registration
+        try {
+          await login(email, password)
+          router.push("/dashboard")
+        } catch {
+          toast.error("Registration successful, but sign-in failed. Please try signing in manually.")
+          router.push("/auth/signin")
+        }
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Something went wrong"
@@ -56,10 +87,16 @@ export default function SignUp() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
     try {
-      // Get the Google auth URL from backend and redirect
-      const authUrl = await getGoogleAuthUrl()
+      console.log('🔍 Signup Debug - Starting Google OAuth with role:', selectedRole)
+      
+      // Get the Google auth URL with the selected role parameter
+      const authUrl = await getGoogleAuthUrl(selectedRole)
+      console.log('🔍 Signup Debug - Got auth URL with role parameter:', authUrl)
+      
+      // Redirect to Google OAuth
       window.location.href = authUrl
     } catch (error) {
+      console.error('🔍 Signup Debug - Google sign-in error:', error)
       toast.error("Google sign-in failed")
       setIsLoading(false)
     }
@@ -156,6 +193,13 @@ export default function SignUp() {
             </CardHeader>
             
             <CardContent className="space-y-6 px-0">
+              {/* Role Selection */}
+              <RoleSelector 
+                selectedRole={selectedRole} 
+                onRoleChange={setSelectedRole}
+                showDescription={true}
+              />
+
               {/* Google Sign Up */}
               <Button 
                 variant="outline" 
@@ -169,7 +213,7 @@ export default function SignUp() {
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                Continue with Google
+                Continue with Google as {selectedRole}
               </Button>
 
               <div className="relative">

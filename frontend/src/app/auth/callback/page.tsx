@@ -15,6 +15,13 @@ function AuthCallbackContent() {
         const token = searchParams.get('token');
         const userId = searchParams.get('user_id');
         const error = searchParams.get('error');
+        const role = searchParams.get('role');
+
+        console.log('🔍 OAuth Callback Debug - Starting callback handling');
+        console.log('🔍 OAuth Callback Debug - Token:', token ? 'present' : 'missing');
+        console.log('🔍 OAuth Callback Debug - User ID:', userId);
+        console.log('🔍 OAuth Callback Debug - Role:', role);
+        console.log('🔍 OAuth Callback Debug - Error:', error);
 
         if (error) {
           setStatus('error');
@@ -25,11 +32,31 @@ function AuthCallbackContent() {
         }
 
         if (token && userId) {
-          await authService.handleAuthCallback(token, userId);
-          setStatus('success');
-          setTimeout(() => {
-            router.push('/dashboard');
-          }, 1000);
+          console.log('🔍 OAuth Callback Debug - Processing successful OAuth callback');
+          
+          try {
+            const user = await authService.handleAuthCallback(token, userId);
+            console.log('🔍 OAuth Callback Debug - Auth callback completed successfully');
+            console.log('🔍 OAuth Callback Debug - User active status:', user?.is_active);
+            
+            setStatus('success');
+            setTimeout(() => {
+              // Always redirect to dashboard - let dashboard handle pending approval status
+              router.push('/dashboard');
+            }, 1000);
+          } catch (authError) {
+            console.error('🔍 OAuth Callback Debug - Auth callback error:', authError);
+            // If it's a "Failed to fetch user data" error, it might be because the user is inactive
+            if (authError instanceof Error && authError.message.includes('Failed to fetch user data')) {
+              // This is likely a Teacher account pending approval - still redirect to dashboard
+              setStatus('success');
+              setTimeout(() => {
+                router.push('/dashboard');
+              }, 1000);
+              return;
+            }
+            throw authError;
+          }
         } else {
           setStatus('error');
           setTimeout(() => {
@@ -37,7 +64,7 @@ function AuthCallbackContent() {
           }, 2000);
         }
       } catch (error) {
-        console.error('Callback error:', error);
+        console.error('🔍 OAuth Callback Debug - Callback error:', error);
         setStatus('error');
         setTimeout(() => {
           router.push('/auth/signin?error=callback_failed');
@@ -54,7 +81,7 @@ function AuthCallbackContent() {
         <div className="text-center">
           {status === 'loading' && (
             <>
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto"></div>
               <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
                 Completing sign in...
               </h2>
@@ -105,7 +132,7 @@ export default function AuthCallback() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
       </div>
     }>
       <AuthCallbackContent />

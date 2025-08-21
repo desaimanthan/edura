@@ -130,6 +130,12 @@ async def get_all_users(current_user: UserInDB = Depends(get_current_active_user
                 "description": role["description"]
             } if role else {"_id": "", "name": "No Role", "description": "No role assigned"},
             "is_active": user.get("is_active", True),
+            # Teacher approval system fields
+            "approval_status": user.get("approval_status"),
+            "requested_role_name": user.get("requested_role_name"),
+            "approved_by": str(user["approved_by"]) if user.get("approved_by") else None,
+            "approved_at": user["approved_at"].isoformat() if user.get("approved_at") else None,
+            "approval_reason": user.get("approval_reason"),
             "created_at": user["created_at"].isoformat() if user.get("created_at") else None,
             "updated_at": user["updated_at"].isoformat() if user.get("updated_at") else None
         }

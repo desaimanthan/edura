@@ -7,9 +7,9 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, role?: string) => Promise<{ requiresApproval: boolean; message: string }>;
   logout: () => Promise<void>;
-  getGoogleAuthUrl: () => Promise<string>;
+  getGoogleAuthUrl: (role?: string) => Promise<string>;
   isAuthenticated: boolean;
 }
 
@@ -45,10 +45,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (name: string, email: string, password: string): Promise<void> => {
+  const register = async (name: string, email: string, password: string, role?: string): Promise<{ requiresApproval: boolean; message: string }> => {
     setLoading(true);
     try {
-      await authService.register(name, email, password);
+      const result = await authService.register(name, email, password, role);
+      return result;
     } finally {
       setLoading(false);
     }
@@ -64,8 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const getGoogleAuthUrl = async (): Promise<string> => {
-    return await authService.getGoogleAuthUrl();
+  const getGoogleAuthUrl = async (role?: string): Promise<string> => {
+    return await authService.getGoogleAuthUrl(role);
   };
 
   // Add a method to refresh user data (useful after OAuth callback)
