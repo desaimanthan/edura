@@ -46,6 +46,19 @@ export interface FileNode {
   slideNumber?: number | null // Add slide number for proper sorting and display
   displayTitle?: string // Human-readable title for display in UI
   materialId?: string // Database material ID for assessments and other content
+  targetedChange?: {
+    type: string
+    target: string
+    replacement: string
+    description: string
+    coordinates?: {
+      start_line: number
+      end_line: number
+      exact_text_to_replace: string
+      replacement_text: string
+    }
+    status?: 'highlighting' | 'completed'
+  } // Targeted change data for Agent 5 diff preview
 }
 
 export interface CourseFileTreeSnapshot {

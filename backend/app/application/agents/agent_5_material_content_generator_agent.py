@@ -100,6 +100,54 @@ class MaterialContentGeneratorAgent:
                 }
             },
             {
+                "name": "edit_slide_content_targeted",
+                "description": "Make targeted edits to specific slide content via natural language with diff preview",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "course_id": {
+                            "type": "string",
+                            "description": "The ID of the course"
+                        },
+                        "slide_reference": {
+                            "type": "string",
+                            "description": "Natural language slide reference (e.g., 'slide 1 module 1 chapter 1', 'current slide', 'first slide')"
+                        },
+                        "edit_instruction": {
+                            "type": "string",
+                            "description": "What to edit (e.g., 'change title to X', 'add paragraph about Y', 'modify section Z')"
+                        },
+                        "current_slide_id": {
+                            "type": "string",
+                            "description": "Optional: ID of currently selected slide for 'current slide' references"
+                        }
+                    },
+                    "required": ["course_id", "slide_reference", "edit_instruction"]
+                }
+            },
+            {
+                "name": "apply_targeted_edit",
+                "description": "Apply approved targeted edit changes to slide content",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "material_id": {
+                            "type": "string",
+                            "description": "The ID of the material to apply changes to"
+                        },
+                        "approved": {
+                            "type": "boolean",
+                            "description": "Whether the targeted edit is approved"
+                        },
+                        "modified_content": {
+                            "type": "string",
+                            "description": "The modified content to apply (if approved)"
+                        }
+                    },
+                    "required": ["material_id", "approved"]
+                }
+            },
+            {
                 "name": "find_slide_by_description",
                 "description": "Find and list slides/materials matching a natural language description",
                 "parameters": {
@@ -197,13 +245,16 @@ QUALITY STANDARDS:
 - start_content_generation: Begin processing materials with content_status="not done"
 - generate_slide_content: Create detailed content for a specific slide using a MongoDB ObjectId (24-character hex string)
 - generate_specific_slide_content: Create content for a slide using natural language description (e.g., slide titles, descriptions)
+- edit_slide_content_targeted: Make targeted edits to existing slide content with diff preview (e.g., "add image", "modify title", "change paragraph")
 - approve_content: Mark content as approved and move to next slide
 - modify_content: Revise content based on user feedback
 
 FUNCTION SELECTION GUIDELINES:
-- Use generate_specific_slide_content when user provides slide titles, descriptions, or natural language references
+- Use edit_slide_content_targeted for ANY modification requests to existing content (e.g., "add image", "modify title", "change paragraph", "add section", "include", "insert")
+- Use generate_specific_slide_content ONLY when creating completely new content from scratch or when user explicitly says "generate" or "create"
 - Use generate_slide_content only when you have a confirmed MongoDB ObjectId (24-character hex string)
-- Always prefer generate_specific_slide_content for user requests with descriptive text
+- CRITICAL: If user mentions "add", "modify", "change", "edit", "update", "include", "insert", "append" to existing content, ALWAYS use edit_slide_content_targeted
+- CRITICAL: Phrases like "for the same slide, can you add..." or "add an image to..." are EDIT requests, not generation requests
 
 Focus on creating high-quality educational content that enables effective self-study and deep learning."""
     
@@ -284,12 +335,15 @@ Focus on creating high-quality educational content that enables effective self-s
                         )
                         function_results["specific_slide_generated"] = result
                     elif function_name == "edit_specific_slide_content":
-                        result = await self._edit_specific_slide_content(
+                        # REDIRECT to targeted editing for diff preview
+                        print(f"🔄 [MaterialContentGeneratorAgent] Redirecting edit_specific_slide_content to targeted editing for diff preview")
+                        result = await self._edit_slide_content_targeted(
                             function_args["course_id"],
                             function_args["slide_description"],
-                            function_args["modification_request"]
+                            function_args["modification_request"],
+                            None  # current_slide_id
                         )
-                        function_results["specific_slide_edited"] = result
+                        function_results["slide_content_edited_targeted"] = result
                     elif function_name == "find_slide_by_description":
                         result = await self._find_slide_by_description(
                             function_args["course_id"],
@@ -308,6 +362,21 @@ Focus on creating high-quality educational content that enables effective self-s
                             function_args["modification_request"]
                         )
                         function_results["content_modified"] = result
+                    elif function_name == "edit_slide_content_targeted":
+                        result = await self._edit_slide_content_targeted(
+                            function_args["course_id"],
+                            function_args["slide_reference"],
+                            function_args["edit_instruction"],
+                            function_args.get("current_slide_id")
+                        )
+                        function_results["slide_content_edited_targeted"] = result
+                    elif function_name == "apply_targeted_edit":
+                        result = await self._apply_targeted_edit(
+                            function_args["material_id"],
+                            function_args["approved"],
+                            function_args.get("modified_content")
+                        )
+                        function_results["targeted_edit_applied"] = result
                 
                 elif item.type == "message":
                     # Handle assistant message content
@@ -957,13 +1026,14 @@ Focus on creating content that reads naturally and keeps students interested thr
             # Store structured data in the material record
             print(f"✅ [MaterialContentGeneratorAgent] Generated {assessment_format} assessment with structured data")
             
-            # CRITICAL FIX: Store assessment data as structured object, not JSON string
-            # This allows the frontend to properly render assessments from the database
+            # CRITICAL FIX: Store assessment data as JSON string for ContentMaterialResponse compatibility
+            # The content field must be a string, not a dictionary
+            import json
             return {
                 "success": True,
-                "content": assessment_data,  # Store as structured data, not JSON string
+                "content": json.dumps(assessment_data),  # Store as JSON string for Pydantic validation
                 "assessment_format": assessment_format,
-                "assessment_data": assessment_data,
+                "assessment_data": assessment_data,  # Keep structured data for database storage
                 "question_difficulty": question_result.get("difficulty", "intermediate")
             }
             
@@ -1404,16 +1474,26 @@ Example structure:
                 try:
                     print(f"🔍 [MaterialContentGeneratorAgent] Processing image request {i+1}: format='{image_request.get('format')}', description='{image_request['description'][:50]}...'")
                     
+                    # Extract image description for this request
+                    image_description = image_request['description']
+                    
                     # Generate image using the image agent
                     image_result = await self.image_agent.generate_image_multi_size(
-                        course_id=str(material["course_id"]),
-                        image_name=f"{material['title']} - {image_request['description']}",
-                        image_description=image_request['description'],
-                        image_type="slide_content",
-                        filename=f"slide_{material.get('slide_number', i+1)}_image_{i+1}",
-                        style_preference="professional_educational",
-                        dynamic_colors=True
-                    )
+                course_id=str(material["course_id"]),
+                image_name=f"{material['title']} - {image_description}",
+                image_description=image_description,
+                image_type="slide_content",
+                filename=f"slide_{material.get('slide_number', i+1)}_image_{i+1}",
+                style_preference="professional_educational",
+                dynamic_colors=True,
+                calling_agent="material_content_generator",
+                context={
+                    "content_type": "educational_material",
+                    "learning_objective": material.get('description'),
+                    "material_type": material['material_type'],
+                    "purpose": "content_illustration"
+                }
+            )
                     
                     if image_result["success"]:
                         # Get medium size image URL for content integration
@@ -1938,6 +2018,33 @@ Please provide the complete modified content that addresses the feedback while m
             else:
                 return f"❌ **Search Failed:** {result.get('error', 'Unknown error')}"
         
+        # Handle targeted slide content editing
+        if "slide_content_edited_targeted" in function_results:
+            result = function_results["slide_content_edited_targeted"]
+            if result.get("success"):
+                if result.get("requires_approval"):
+                    material_title = result.get("material_title", "Unknown")
+                    changes_summary = result.get("changes_summary", "Content modified")
+                    edit_preview = result.get("edit_preview", {})
+                    
+                    return f"🎯 **Targeted Edit Preview Ready!**\n\n📄 **Material:** {material_title}\n🔧 **Edit Type:** {edit_preview.get('change_type', 'modification')}\n📝 **Changes:** {changes_summary}\n\n**Preview the changes and choose:**\n- **✅ Approve & Apply** to save the changes\n- **❌ Cancel** to discard the changes\n\nThe diff preview shows exactly what will be modified."
+                else:
+                    return f"🎯 **Targeted Edit Applied!** Changes have been made to the slide content."
+            else:
+                return f"❌ **Targeted Edit Failed:** {result.get('error', 'Unknown error')}"
+        
+        # Handle targeted edit application
+        if "targeted_edit_applied" in function_results:
+            result = function_results["targeted_edit_applied"]
+            if result.get("success"):
+                material_title = result.get("material_title", "Unknown")
+                if result.get("applied"):
+                    return f"✅ **Targeted Edit Applied Successfully!**\n\n📄 **Material:** {material_title}\n\nYour targeted changes have been saved and the content has been updated. The modified content is now available for preview."
+                else:
+                    return f"❌ **Targeted Edit Cancelled**\n\n📄 **Material:** {material_title}\n\nThe targeted edit was not applied. The original content remains unchanged."
+            else:
+                return f"❌ **Targeted Edit Application Failed:** {result.get('error', 'Unknown error')}"
+        
         return base_response or "Content generation operation completed. What would you like to work on next?"
     
     async def get_content_generation_status(self, course_id: str) -> Dict[str, Any]:
@@ -2438,3 +2545,786 @@ If no good matches found, return: {{"success": false, "error": "No relevant mate
         except Exception as e:
             print(f"❌ [MaterialContentGeneratorAgent] Error generating file path: {e}")
             return f"/content/material-{material.get('_id', 'unknown')}.md"
+    
+    async def _edit_slide_content_targeted(self, course_id: str, slide_reference: str, edit_instruction: str, current_slide_id: Optional[str] = None) -> Dict[str, Any]:
+        """Make targeted edits to specific slide content via natural language with diff preview"""
+        try:
+            print(f"🎯 [MaterialContentGeneratorAgent] Starting targeted edit for slide: '{slide_reference}' with instruction: '{edit_instruction}'")
+            
+            # Validate course_id format
+            if not self._is_valid_object_id(course_id):
+                return {"success": False, "error": f"Invalid course ID format: '{course_id}'"}
+            
+            # Resolve slide reference to material
+            material_result = await self._resolve_slide_reference(course_id, slide_reference, current_slide_id)
+            
+            if not material_result["success"]:
+                return material_result
+            
+            material_id = material_result["material_id"]
+            material_title = material_result["material_title"]
+            
+            # Get current content
+            db = await self.db.get_database()
+            material = await db.content_materials.find_one({"_id": ObjectId(material_id)})
+            
+            if not material:
+                return {"success": False, "error": "Material not found"}
+            
+            if not material.get("content"):
+                return {"success": False, "error": f"No existing content found for '{material_title}'. Please generate content first."}
+            
+            current_content = material["content"]
+            
+            # Analyze the edit request
+            analysis_result = await self._analyze_targeted_edit_request(current_content, edit_instruction)
+            
+            if not analysis_result["success"]:
+                return analysis_result
+            
+            # Apply targeted edit using coordinate detection
+            if analysis_result["edit_type"] == "simple_text_replacement":
+                # Use LLM coordinate detection for precise edits
+                coordinates = await self._get_llm_coordinates_for_edit(current_content, edit_instruction)
+                
+                if coordinates["success"]:
+                    modified_content = self._apply_coordinate_based_edit(current_content, coordinates)
+                else:
+                    # Fallback to AI-based modification
+                    modified_content = await self._apply_ai_based_edit(current_content, edit_instruction, material)
+            else:
+                # Use AI for complex edits
+                modified_content = await self._apply_ai_based_edit(current_content, edit_instruction, material)
+            
+            # Return diff preview for user approval
+            return {
+                "success": True,
+                "edit_type": "targeted_modification",
+                "material_id": material_id,
+                "material_title": material_title,
+                "slide_reference": slide_reference,
+                "edit_instruction": edit_instruction,
+                "original_content": current_content,
+                "modified_content": modified_content,
+                "changes_summary": analysis_result.get("description", "Content modified based on request"),
+                "requires_approval": True,
+                "edit_preview": {
+                    "change_type": analysis_result["edit_type"],
+                    "target_section": analysis_result.get("target_section", "Content"),
+                    "description": analysis_result.get("description", "Content modified")
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error in targeted edit: {e}")
+            return {"success": False, "error": f"Failed to perform targeted edit: {str(e)}"}
+    
+    async def _apply_targeted_edit(self, material_id: str, approved: bool, modified_content: Optional[str] = None) -> Dict[str, Any]:
+        """Apply approved targeted edit changes to slide content"""
+        try:
+            print(f"🎯 [MaterialContentGeneratorAgent] Applying targeted edit for material {material_id}, approved: {approved}")
+            
+            if not self._is_valid_object_id(material_id):
+                return {"success": False, "error": f"Invalid material ID format: '{material_id}'"}
+            
+            db = await self.db.get_database()
+            material = await db.content_materials.find_one({"_id": ObjectId(material_id)})
+            
+            if not material:
+                return {"success": False, "error": "Material not found"}
+            
+            if approved and modified_content:
+                # Apply the approved changes
+                await db.content_materials.update_one(
+                    {"_id": ObjectId(material_id)},
+                    {
+                        "$set": {
+                            "content": modified_content,
+                            "updated_at": datetime.utcnow()
+                        }
+                    }
+                )
+                
+                # Update R2 storage if it's not an assessment
+                is_assessment = material.get('material_type') == 'assessment'
+                if not is_assessment:
+                    course = await self.db.find_course(str(material["course_id"]))
+                    if course:
+                        r2_result = await self._store_content_in_r2(material, modified_content, course)
+                        
+                        if r2_result["success"]:
+                            await db.content_materials.update_one(
+                                {"_id": ObjectId(material_id)},
+                                {
+                                    "$set": {
+                                        "r2_key": r2_result["r2_key"],
+                                        "public_url": r2_result["public_url"],
+                                        "updated_at": datetime.utcnow()
+                                    }
+                                }
+                            )
+                
+                return {
+                    "success": True,
+                    "applied": True,
+                    "material_id": material_id,
+                    "material_title": material["title"],
+                    "message": f"Targeted edit applied successfully to '{material['title']}'"
+                }
+            else:
+                # Edit was rejected
+                return {
+                    "success": True,
+                    "applied": False,
+                    "material_id": material_id,
+                    "material_title": material["title"],
+                    "message": "Targeted edit was not applied"
+                }
+                
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error applying targeted edit: {e}")
+            return {"success": False, "error": f"Failed to apply targeted edit: {str(e)}"}
+    
+    async def _resolve_slide_reference(self, course_id: str, slide_reference: str, current_slide_id: Optional[str] = None) -> Dict[str, Any]:
+        """Resolve natural language slide reference to material ID"""
+        try:
+            # Handle "current slide" reference
+            if "current slide" in slide_reference.lower() and current_slide_id:
+                if self._is_valid_object_id(current_slide_id):
+                    db = await self.db.get_database()
+                    material = await db.content_materials.find_one({"_id": ObjectId(current_slide_id)})
+                    if material:
+                        return {
+                            "success": True,
+                            "material_id": current_slide_id,
+                            "material_title": material["title"]
+                        }
+            
+            # Use existing material finding logic
+            material_result = await self._find_material_by_description(course_id, slide_reference, limit=1)
+            
+            if not material_result["success"]:
+                return material_result
+            
+            materials = material_result.get("materials", [])
+            if not materials:
+                return {"success": False, "error": f"No materials found matching: '{slide_reference}'"}
+            
+            target_material = materials[0]
+            return {
+                "success": True,
+                "material_id": target_material["id"],
+                "material_title": target_material["title"]
+            }
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error resolving slide reference: {e}")
+            return {"success": False, "error": f"Failed to resolve slide reference: {str(e)}"}
+    
+    async def _analyze_targeted_edit_request(self, current_content: str, edit_instruction: str) -> Dict[str, Any]:
+        """Analyze the targeted edit request to determine edit type and approach"""
+        try:
+            # Use AI to analyze the edit request
+            analysis_prompt = f"""You are an expert content editor. Analyze this edit request and determine the best approach.
+
+CURRENT CONTENT (first 500 chars):
+{current_content[:500]}...
+
+EDIT INSTRUCTION: {edit_instruction}
+
+Analyze this request and determine:
+1. What type of edit is needed
+2. What specific content needs to be changed
+3. A clear description of the change
+
+Respond in JSON format:
+{{
+    "success": true,
+    "edit_type": "simple_text_replacement|content_addition|content_removal|structure_change|complex_modification",
+    "target_section": "Brief description of what section is being modified",
+    "description": "Clear description of what will be changed",
+    "complexity": "low|medium|high",
+    "confidence": "high|medium|low"
+}}"""
+
+            messages = [
+                {"role": "system", "content": "You are an expert content analysis assistant."},
+                {"role": "user", "content": analysis_prompt}
+            ]
+            
+            response = await self.openai.create_chat_completion(
+                model=self.model,
+                messages=messages,
+                temperature=0.3
+            )
+            
+            analysis_text = response.choices[0].message.content.strip()
+            
+            # Parse JSON response
+            try:
+                if "```json" in analysis_text:
+                    json_start = analysis_text.find("```json") + 7
+                    json_end = analysis_text.find("```", json_start)
+                    analysis_text = analysis_text[json_start:json_end].strip()
+                elif "```" in analysis_text:
+                    json_start = analysis_text.find("```") + 3
+                    json_end = analysis_text.find("```", json_start)
+                    analysis_text = analysis_text[json_start:json_end].strip()
+                
+                analysis_result = json.loads(analysis_text)
+                analysis_result["success"] = True
+                return analysis_result
+                
+            except json.JSONDecodeError:
+                # Fallback analysis
+                return {
+                    "success": True,
+                    "edit_type": "complex_modification",
+                    "target_section": "Content",
+                    "description": f"Apply requested changes: {edit_instruction}",
+                    "complexity": "medium",
+                    "confidence": "medium"
+                }
+                
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error analyzing edit request: {e}")
+            return {"success": False, "error": f"Failed to analyze edit request: {str(e)}"}
+    
+    async def _get_llm_coordinates_for_edit(self, content: str, edit_instruction: str) -> Dict[str, Any]:
+        """Use LLM to get precise coordinates for targeted edits (similar to course-design agent)"""
+        try:
+            # Split content into numbered lines for reference
+            lines = content.split('\n')
+            numbered_content = ""
+            for i, line in enumerate(lines, 1):
+                numbered_content += f"{i:3d}: {line}\n"
+            
+            coordinate_prompt = f"""You are an expert content analyzer. Find the EXACT location for this edit request.
+
+NUMBERED CONTENT:
+{numbered_content}
+
+EDIT INSTRUCTION: {edit_instruction}
+
+Your task:
+1. Identify exactly what text needs to be changed
+2. Find the precise line number(s) where this text appears
+3. Determine the exact text to replace and what to replace it with
+
+Respond in JSON format:
+{{
+    "success": true,
+    "target_section": "Brief description of what section is being modified",
+    "start_line": 15,
+    "end_line": 15,
+    "exact_text_to_replace": "The exact text that needs to be replaced",
+    "replacement_text": "What to replace it with",
+    "context_before": "Text that appears before the target",
+    "context_after": "Text that appears after the target",
+    "confidence": "high|medium|low"
+}}"""
+
+            messages = [
+                {"role": "system", "content": "You are an expert content coordinate detection assistant."},
+                {"role": "user", "content": coordinate_prompt}
+            ]
+            
+            response = await self.openai.create_chat_completion(
+                model=self.model,
+                messages=messages,
+                temperature=0.1
+            )
+            
+            coordinate_text = response.choices[0].message.content.strip()
+            
+            # Parse JSON response
+            try:
+                if "```json" in coordinate_text:
+                    json_start = coordinate_text.find("```json") + 7
+                    json_end = coordinate_text.find("```", json_start)
+                    coordinate_text = coordinate_text[json_start:json_end].strip()
+                elif "```" in coordinate_text:
+                    json_start = coordinate_text.find("```") + 3
+                    json_end = coordinate_text.find("```", json_start)
+                    coordinate_text = coordinate_text[json_start:json_end].strip()
+                
+                coordinates = json.loads(coordinate_text)
+                
+                # Validate coordinates
+                if self._validate_edit_coordinates(coordinates, lines):
+                    return coordinates
+                else:
+                    return {"success": False, "error": "Invalid coordinates"}
+                    
+            except json.JSONDecodeError:
+                return {"success": False, "error": "Failed to parse coordinates"}
+                
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error getting LLM coordinates: {e}")
+            return {"success": False, "error": f"Coordinate detection failed: {str(e)}"}
+    
+    def _validate_edit_coordinates(self, coordinates: Dict[str, Any], lines: List[str]) -> bool:
+        """Validate that the edit coordinates make sense"""
+        try:
+            start_line = coordinates.get("start_line", 0)
+            end_line = coordinates.get("end_line", 0)
+            exact_text = coordinates.get("exact_text_to_replace", "")
+            
+            # Check line numbers are valid
+            if start_line < 1 or start_line > len(lines):
+                return False
+            
+            if end_line < 1 or end_line > len(lines):
+                return False
+            
+            # Check that the exact text exists in the specified line(s)
+            target_lines = lines[start_line-1:end_line]
+            combined_text = '\n'.join(target_lines)
+            
+            if exact_text and exact_text not in combined_text:
+                return False
+            
+            return True
+            
+        except Exception:
+            return False
+    
+    def _apply_coordinate_based_edit(self, content: str, coordinates: Dict[str, Any]) -> str:
+        """Apply targeted edit using LLM-provided coordinates with precise replacement"""
+        try:
+            lines = content.split('\n')
+            start_line = coordinates['start_line'] - 1  # Convert to 0-indexed
+            end_line = coordinates['end_line'] - 1
+            exact_text = coordinates['exact_text_to_replace']
+            replacement_text = coordinates['replacement_text']
+            
+            print(f"🎯 [MaterialContentGeneratorAgent] Applying coordinate-based edit:")
+            print(f"   Lines: {start_line + 1}-{end_line + 1}")
+            print(f"   Target: '{exact_text[:50]}...'")
+            print(f"   Replacement: '{replacement_text[:50]}...'")
+            
+            # Validate line numbers
+            if start_line < 0 or end_line >= len(lines) or start_line > end_line:
+                print(f"❌ [MaterialContentGeneratorAgent] Invalid line numbers: {start_line + 1}-{end_line + 1}")
+                raise ValueError(f"Invalid line numbers: {start_line + 1}-{end_line + 1}")
+            
+            # Get the target text from the specified lines
+            target_lines = lines[start_line:end_line + 1]
+            target_content = '\n'.join(target_lines)
+            
+            # Verify the exact text exists in the target lines
+            if exact_text not in target_content:
+                print(f"⚠️ [MaterialContentGeneratorAgent] Exact text not found in target lines")
+                print(f"   Expected: '{exact_text}'")
+                print(f"   Found: '{target_content}'")
+                # Try partial matching
+                if any(word in target_content for word in exact_text.split() if len(word) > 3):
+                    print(f"   Applying partial replacement...")
+                    # Replace the entire line range with the replacement text
+                    lines[start_line:end_line + 1] = [replacement_text]
+                else:
+                    raise ValueError("Target text not found in specified lines")
+            else:
+                # Apply precise replacement
+                modified_content = target_content.replace(exact_text, replacement_text, 1)
+                modified_lines = modified_content.split('\n')
+                lines[start_line:end_line + 1] = modified_lines
+            
+            result = '\n'.join(lines)
+            print(f"✅ [MaterialContentGeneratorAgent] Coordinate-based edit applied successfully")
+            return result
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error in coordinate-based edit: {e}")
+            raise e
+    
+    async def _apply_ai_based_edit(self, current_content: str, edit_instruction: str, material: Dict[str, Any]) -> str:
+        """Apply AI-based edit for complex modifications with precise targeting and image generation"""
+        try:
+            # Check if this is an image addition request
+            if self._is_image_addition_request(edit_instruction):
+                return await self._handle_image_addition_edit(current_content, edit_instruction, material)
+            
+            # Step 1: First identify what needs to be changed
+            identification_prompt = f"""You are an expert content analyzer. Identify EXACTLY what needs to be changed in this content.
+
+EDIT INSTRUCTION: {edit_instruction}
+
+CURRENT CONTENT:
+{current_content}
+
+Your task:
+1. Find the EXACT text that needs to be modified
+2. Determine what it should be changed to
+3. Provide the precise before/after text
+
+Respond in JSON format:
+{{
+    "success": true,
+    "target_text": "The exact text that needs to be changed",
+    "replacement_text": "What it should be changed to",
+    "context_before": "Text that appears before the target (for verification)",
+    "context_after": "Text that appears after the target (for verification)",
+    "change_type": "replacement|addition|removal",
+    "confidence": "high|medium|low"
+}}
+
+If you cannot identify a specific target, respond with success: false and explain why."""
+
+            messages = [
+                {"role": "system", "content": "You are an expert content analysis assistant specializing in precise text identification."},
+                {"role": "user", "content": identification_prompt}
+            ]
+            
+            response = await self.openai.create_chat_completion(
+                model=self.model,
+                messages=messages,
+                temperature=0.1,
+                max_tokens=1000
+            )
+            
+            identification_text = response.choices[0].message.content.strip()
+            
+            # Parse the identification result
+            try:
+                if "```json" in identification_text:
+                    json_start = identification_text.find("```json") + 7
+                    json_end = identification_text.find("```", json_start)
+                    identification_text = identification_text[json_start:json_end].strip()
+                elif "```" in identification_text:
+                    json_start = identification_text.find("```") + 3
+                    json_end = identification_text.find("```", json_start)
+                    identification_text = identification_text[json_start:json_end].strip()
+                
+                identification_result = json.loads(identification_text)
+                
+                if identification_result.get("success") and identification_result.get("target_text"):
+                    # Step 2: Apply the precise change
+                    target_text = identification_result["target_text"]
+                    replacement_text = identification_result["replacement_text"]
+                    
+                    print(f"🎯 [MaterialContentGeneratorAgent] Applying precise edit:")
+                    print(f"   Target: '{target_text[:100]}...'")
+                    print(f"   Replacement: '{replacement_text[:100]}...'")
+                    
+                    # Perform the targeted replacement
+                    if target_text in current_content:
+                        modified_content = current_content.replace(target_text, replacement_text, 1)  # Replace only first occurrence
+                        print(f"✅ [MaterialContentGeneratorAgent] Precise replacement successful")
+                        return modified_content
+                    else:
+                        print(f"⚠️ [MaterialContentGeneratorAgent] Target text not found, falling back to fuzzy matching")
+                        # Try fuzzy matching for similar text
+                        return await self._apply_fuzzy_edit(current_content, target_text, replacement_text)
+                else:
+                    print(f"⚠️ [MaterialContentGeneratorAgent] Could not identify precise target, using fallback method")
+                    return await self._apply_fallback_edit(current_content, edit_instruction)
+                    
+            except json.JSONDecodeError:
+                print(f"❌ [MaterialContentGeneratorAgent] Failed to parse identification result, using fallback")
+                return await self._apply_fallback_edit(current_content, edit_instruction)
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error in AI-based edit: {e}")
+            return await self._apply_fallback_edit(current_content, edit_instruction)
+    
+    async def _apply_fuzzy_edit(self, current_content: str, target_text: str, replacement_text: str) -> str:
+        """Apply edit using fuzzy text matching when exact match fails"""
+        try:
+            # Split target text into words for fuzzy matching
+            target_words = target_text.split()
+            content_lines = current_content.split('\n')
+            
+            # Find the line that contains most of the target words
+            best_match_line = -1
+            best_match_score = 0
+            
+            for i, line in enumerate(content_lines):
+                line_words = line.lower().split()
+                matches = sum(1 for word in target_words if word.lower() in line_words)
+                score = matches / len(target_words) if target_words else 0
+                
+                if score > best_match_score and score > 0.5:  # At least 50% match
+                    best_match_score = score
+                    best_match_line = i
+            
+            if best_match_line >= 0:
+                # Replace the matched line
+                content_lines[best_match_line] = replacement_text
+                print(f"✅ [MaterialContentGeneratorAgent] Fuzzy replacement applied to line {best_match_line + 1}")
+                return '\n'.join(content_lines)
+            else:
+                print(f"⚠️ [MaterialContentGeneratorAgent] Fuzzy matching failed, using fallback")
+                return await self._apply_fallback_edit(current_content, f"Replace '{target_text}' with '{replacement_text}'")
+                
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error in fuzzy edit: {e}")
+            return await self._apply_fallback_edit(current_content, f"Replace '{target_text}' with '{replacement_text}'")
+    
+    async def _apply_fallback_edit(self, current_content: str, edit_instruction: str) -> str:
+        """Fallback method that uses very strict instructions to avoid full regeneration"""
+        try:
+            # Use a very strict prompt that emphasizes minimal changes
+            fallback_prompt = f"""You are a precise text editor. Make ONLY the minimal change requested.
+
+CRITICAL RULES:
+1. Output the COMPLETE content with ONLY the requested change
+2. Do NOT rewrite, rephrase, or improve anything else
+3. Keep ALL existing formatting, headers, lists, and structure EXACTLY as is
+4. Change ONLY what is specifically requested
+5. If you cannot make the specific change, make the closest minimal change possible
+
+EDIT REQUEST: {edit_instruction}
+
+CONTENT TO EDIT:
+{current_content}
+
+Make the minimal change and return the complete content."""
+
+            messages = [
+                {"role": "system", "content": "You are a minimal-change text editor. You make only the specific requested change and nothing else."},
+                {"role": "user", "content": fallback_prompt}
+            ]
+            
+            response = await self.openai.create_chat_completion(
+                model=self.model,
+                messages=messages,
+                temperature=0.1,  # Very low temperature for consistency
+                max_tokens=len(current_content.split()) + 200  # Limit tokens to prevent expansion
+            )
+            
+            modified_content = response.choices[0].message.content.strip()
+            cleaned_content = self._clean_content(modified_content)
+            
+            print(f"✅ [MaterialContentGeneratorAgent] Fallback edit applied")
+            return cleaned_content
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error in fallback edit: {e}")
+            # If all else fails, return original content
+            return current_content
+    
+    def _is_image_addition_request(self, edit_instruction: str) -> bool:
+        """Check if the edit instruction is requesting to add an image"""
+        try:
+            instruction_lower = edit_instruction.lower()
+            image_keywords = [
+                'add image', 'add an image', 'insert image', 'include image',
+                'add picture', 'add visual', 'add illustration', 'add diagram',
+                'image representation', 'visual representation', 'add graphic'
+            ]
+            
+            return any(keyword in instruction_lower for keyword in image_keywords)
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error checking image addition request: {e}")
+            return False
+    
+    async def _handle_image_addition_edit(self, current_content: str, edit_instruction: str, material: Dict[str, Any]) -> str:
+        """Handle image addition requests by generating actual images and embedding them"""
+        try:
+            print(f"🖼️ [MaterialContentGeneratorAgent] Handling image addition request: '{edit_instruction}'")
+            
+            # Step 1: Analyze where to place the image and what it should show
+            image_analysis = await self._analyze_image_addition_request(current_content, edit_instruction, material)
+            
+            if not image_analysis["success"]:
+                print(f"❌ [MaterialContentGeneratorAgent] Image analysis failed: {image_analysis.get('error')}")
+                return await self._apply_fallback_edit(current_content, edit_instruction)
+            
+            # Step 2: Generate the image using C1 agent
+            if not self.image_agent:
+                print(f"⚠️ [MaterialContentGeneratorAgent] Image agent not available, using placeholder")
+                return await self._apply_fallback_edit(current_content, edit_instruction)
+            
+            image_description = image_analysis["image_description"]
+            placement_location = image_analysis["placement_location"]
+            
+            print(f"🖼️ [MaterialContentGeneratorAgent] Generating image: '{image_description}'")
+            
+            # Generate image using the image agent
+            image_result = await self.image_agent.generate_image_multi_size(
+                course_id=str(material["course_id"]),
+                image_name=f"{material['title']} - {image_description}",
+                image_description=image_description,
+                image_type="slide_content",
+                filename=f"slide_{material.get('slide_number', 1)}_targeted_edit",
+                style_preference="professional_educational",
+                dynamic_colors=True
+            )
+            
+            if not image_result["success"]:
+                print(f"❌ [MaterialContentGeneratorAgent] Image generation failed: {image_result.get('error')}")
+                return await self._apply_fallback_edit(current_content, edit_instruction)
+            
+            # Step 3: Get the image URL and create markdown
+            medium_image_url = image_result["images"]["medium"]["public_url"]
+            image_markdown = f"![{image_description}]({medium_image_url})\n*{image_description}*"
+            
+            print(f"✅ [MaterialContentGeneratorAgent] Image generated successfully: {medium_image_url}")
+            
+            # Step 4: Insert the image at the specified location
+            modified_content = await self._insert_image_at_location(
+                current_content, 
+                image_markdown, 
+                placement_location,
+                image_analysis.get("target_text", "")
+            )
+            
+            print(f"✅ [MaterialContentGeneratorAgent] Image inserted successfully")
+            return modified_content
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error handling image addition: {e}")
+            return await self._apply_fallback_edit(current_content, edit_instruction)
+    
+    async def _analyze_image_addition_request(self, current_content: str, edit_instruction: str, material: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze the image addition request to determine what image to generate and where to place it"""
+        try:
+            analysis_prompt = f"""You are an expert content analyzer specializing in image placement and description generation.
+
+MATERIAL CONTEXT:
+- Title: {material['title']}
+- Type: {material['material_type']}
+- Course Context: Module {material['module_number']}, Chapter {material['chapter_number']}
+
+EDIT INSTRUCTION: {edit_instruction}
+
+CURRENT CONTENT:
+{current_content}
+
+Your task:
+1. Determine what image should be generated based on the instruction
+2. Create a detailed image description for AI image generation
+3. Identify where in the content the image should be placed
+4. Find the target text/section for placement
+
+Respond in JSON format:
+{{
+    "success": true,
+    "image_description": "Detailed description for AI image generation (be specific about visual elements, style, and content)",
+    "placement_location": "after_paragraph|before_section|after_section|at_end",
+    "target_text": "The specific text/heading after which to place the image",
+    "alt_text": "Brief alt text for the image",
+    "reasoning": "Why this image placement and description makes sense"
+}}
+
+Example image descriptions:
+- "A professional diagram showing the RAG (Retrieval-Augmented Generation) workflow with three main components: a knowledge base, retrieval system, and language model, connected by arrows showing data flow"
+- "An infographic illustrating the benefits of RAG technology with icons and text showing improved accuracy, real-time data access, and reduced hallucinations"
+
+Make the image description detailed and specific for educational content."""
+
+            messages = [
+                {"role": "system", "content": "You are an expert educational content and image analysis assistant."},
+                {"role": "user", "content": analysis_prompt}
+            ]
+            
+            response = await self.openai.create_chat_completion(
+                model=self.model,
+                messages=messages,
+                temperature=0.3,
+                max_tokens=800
+            )
+            
+            analysis_text = response.choices[0].message.content.strip()
+            
+            # Parse JSON response
+            try:
+                if "```json" in analysis_text:
+                    json_start = analysis_text.find("```json") + 7
+                    json_end = analysis_text.find("```", json_start)
+                    analysis_text = analysis_text[json_start:json_end].strip()
+                elif "```" in analysis_text:
+                    json_start = analysis_text.find("```") + 3
+                    json_end = analysis_text.find("```", json_start)
+                    analysis_text = analysis_text[json_start:json_end].strip()
+                
+                analysis_result = json.loads(analysis_text)
+                
+                if analysis_result.get("success") and analysis_result.get("image_description"):
+                    print(f"✅ [MaterialContentGeneratorAgent] Image analysis successful")
+                    return analysis_result
+                else:
+                    return {"success": False, "error": "Failed to analyze image requirements"}
+                    
+            except json.JSONDecodeError:
+                print(f"❌ [MaterialContentGeneratorAgent] Failed to parse image analysis response")
+                return {"success": False, "error": "Failed to parse image analysis"}
+                
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error analyzing image addition request: {e}")
+            return {"success": False, "error": f"Image analysis failed: {str(e)}"}
+    
+    async def _insert_image_at_location(self, content: str, image_markdown: str, placement_location: str, target_text: str) -> str:
+        """Insert image markdown at the specified location in the content"""
+        try:
+            lines = content.split('\n')
+            
+            if placement_location == "at_end":
+                # Add image at the end of content
+                lines.append("")
+                lines.append(image_markdown)
+                return '\n'.join(lines)
+            
+            # Find the target text location
+            target_line_index = -1
+            for i, line in enumerate(lines):
+                if target_text and target_text.strip() in line.strip():
+                    target_line_index = i
+                    break
+            
+            if target_line_index == -1:
+                # If target text not found, try fuzzy matching
+                target_words = target_text.lower().split() if target_text else []
+                best_match_index = -1
+                best_match_score = 0
+                
+                for i, line in enumerate(lines):
+                    line_words = line.lower().split()
+                    matches = sum(1 for word in target_words if word in line_words)
+                    score = matches / len(target_words) if target_words else 0
+                    
+                    if score > best_match_score and score > 0.3:  # At least 30% match
+                        best_match_score = score
+                        best_match_index = i
+                
+                target_line_index = best_match_index
+            
+            if target_line_index >= 0:
+                # Insert image based on placement location
+                if placement_location == "after_paragraph":
+                    # Find the end of the current paragraph
+                    insert_index = target_line_index + 1
+                    while insert_index < len(lines) and lines[insert_index].strip():
+                        insert_index += 1
+                    lines.insert(insert_index, "")
+                    lines.insert(insert_index + 1, image_markdown)
+                    
+                elif placement_location == "before_section":
+                    lines.insert(target_line_index, image_markdown)
+                    lines.insert(target_line_index + 1, "")
+                    
+                elif placement_location == "after_section":
+                    # Find the end of the current section
+                    insert_index = target_line_index + 1
+                    while insert_index < len(lines) and not lines[insert_index].startswith('#'):
+                        insert_index += 1
+                    lines.insert(insert_index, "")
+                    lines.insert(insert_index + 1, image_markdown)
+                    
+                else:
+                    # Default: insert after the target line
+                    lines.insert(target_line_index + 1, "")
+                    lines.insert(target_line_index + 2, image_markdown)
+            else:
+                # If no target found, add at the end
+                lines.append("")
+                lines.append(image_markdown)
+            
+            return '\n'.join(lines)
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error inserting image: {e}")
+            # Fallback: add image at the end
+            return content + f"\n\n{image_markdown}"

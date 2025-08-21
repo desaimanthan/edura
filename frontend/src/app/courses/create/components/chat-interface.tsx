@@ -122,16 +122,26 @@ export function ChatInterface({
   const shouldShowMaterialContentApprovalActions = useCallback((content: string) => {
     const lowerContent = content.toLowerCase()
     // Check for material content generation completion messages (including assessments)
-    return (lowerContent.includes("content generated successfully") || 
-            lowerContent.includes("material content generated") ||
-            lowerContent.includes("slide content generated") ||
-            lowerContent.includes("assessment generated successfully") ||
-            lowerContent.includes("content generation completed")) &&
-           (lowerContent.includes("preview is ready") ||
-            lowerContent.includes("review the generated content") ||
-            lowerContent.includes("review the generated assessment") ||
-            lowerContent.includes("approve & continue") ||
-            lowerContent.includes("request modifications"))
+    const hasContentGenerated = lowerContent.includes("content generated successfully") || 
+                                lowerContent.includes("material content generated") ||
+                                lowerContent.includes("slide content generated") ||
+                                lowerContent.includes("assessment generated successfully") ||
+                                lowerContent.includes("content generation completed")
+    
+    const hasApprovalPrompt = lowerContent.includes("preview is ready") ||
+                             lowerContent.includes("review the generated content") ||
+                             lowerContent.includes("review the generated assessment") ||
+                             lowerContent.includes("approve & continue") ||
+                             lowerContent.includes("request modifications")
+    
+    // CRITICAL FIX: Also check for diff preview messages from Agent 5 targeted edits
+    const isDiffPreviewMessage = (lowerContent.includes("preview the changes") && 
+                                 lowerContent.includes("choose:") &&
+                                 (lowerContent.includes("approve & apply") || lowerContent.includes("✅ approve")) &&
+                                 (lowerContent.includes("cancel") || lowerContent.includes("❌ cancel"))) ||
+                                (lowerContent.includes("diff preview shows exactly what will be modified"))
+    
+    return (hasContentGenerated && hasApprovalPrompt) || isDiffPreviewMessage
   }, [])
 
   // Helper function to check if message should show course structure generation button
@@ -501,6 +511,12 @@ export function ChatInterface({
                   setCurrentCourseId(data.data.course_id)
                 }
                 functionResults = data.data?.function_results || {}
+                
+                // CRITICAL FIX: Handle targeted edit responses from Agent 5
+                const targetedEditResult = (functionResults as Record<string, unknown>).slide_content_edited_targeted as Record<string, unknown>
+                if (targetedEditResult?.success && targetedEditResult.requires_approval && currentCourseId) {
+                  handleTargetedEditResponse(targetedEditResult, currentCourseId)
+                }
               } else if (data.type === 'text') {
                 // Handle both old and new data structure
                 const content = data.content || data.data?.content || ''
@@ -1365,6 +1381,110 @@ export function ChatInterface({
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorMessage])
+    }
+  }
+
+  // Handle targeted edit responses from Agent 5
+  const handleTargetedEditResponse = (targetedEditResult: Record<string, unknown>, courseId: string) => {
+    try {
+      console.log('Processing Agent 5 targeted edit response:', targetedEditResult)
+      
+      // Agent 5 returns: material_id, material_title, original_content, modified_content, edit_preview
+      const materialId = targetedEditResult.material_id as string
+      const materialTitle = targetedEditResult.material_title as string
+      const originalContent = targetedEditResult.original_content as string
+      const modifiedContent = targetedEditResult.modified_content as string
+      const editPreview = targetedEditResult.edit_preview as Record<string, unknown>
+      const changesDescription = targetedEditResult.changes_summary as string
+      
+      if (!materialId || !materialTitle || !originalContent || !modifiedContent) {
+        console.warn('Missing required fields in Agent 5 targeted edit response:', {
+          hasMaterialId: !!materialId,
+          hasMaterialTitle: !!materialTitle,
+          hasOriginalContent: !!originalContent,
+          hasModifiedContent: !!modifiedContent
+        })
+        return
+      }
+      
+      // Find the file path for this material in the course file store
+      const snapshot = courseFileOperations.getSnapshot()
+      let targetFilePath: string | null = null
+      
+      // Search for the material by title or content match
+      for (const [path, node] of snapshot.nodesByPath.entries()) {
+        if (node.fileType === 'markdown' && 
+            (path.includes(materialTitle.toLowerCase().replace(/[^a-z0-9]/g, '_')) ||
+             (node.content && originalContent && node.content.includes(originalContent.substring(0, 100))))) {
+          targetFilePath = path
+          break
+        }
+      }
+      
+      // If not found by content match, try to construct the expected path
+      if (!targetFilePath) {
+        // Try to find any markdown file that might match
+        const markdownFiles = Array.from(snapshot.nodesByPath.entries())
+          .filter(([path, node]) => node.fileType === 'markdown')
+        
+        if (markdownFiles.length > 0) {
+          // Use the first markdown file as fallback, or try to find the most recently updated one
+          const sortedFiles = markdownFiles.sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0))
+          targetFilePath = sortedFiles[0][0]
+          console.log('Using fallback file path for targeted edit:', targetFilePath)
+        }
+      }
+      
+      if (!targetFilePath) {
+        console.warn('Could not find file path for material:', materialTitle)
+        return
+      }
+      
+      // CRITICAL FIX: Create targetedChange data that matches what file-preview expects
+      const targetedChange = {
+        type: editPreview?.change_type as string || 'content_modification',
+        target: editPreview?.target_section as string || materialTitle,
+        replacement: modifiedContent,
+        description: changesDescription || editPreview?.description as string || 'Content modification',
+        coordinates: {
+          start_line: 1,
+          end_line: originalContent.split('\n').length,
+          exact_text_to_replace: originalContent,
+          replacement_text: modifiedContent
+        },
+        // Add the required fields for diff modal
+        originalContent: originalContent,
+        modifiedContent: modifiedContent,
+        materialId: materialId,
+        materialTitle: materialTitle
+      }
+      
+      // Update the course file store with the targeted change data
+      const existing = snapshot.nodesByPath.get(targetFilePath)
+      
+      if (existing) {
+        // CRITICAL FIX: Update the file with both content and targetedChange
+        courseFileOperations.upsertFile(targetFilePath, {
+          content: modifiedContent, // Use the modified content from Agent 5
+          targetedChange: targetedChange,
+          displayTitle: materialTitle // Add display title for better UI
+        })
+        
+        // Auto-select the file being edited to trigger the diff modal
+        courseFileOperations.setSelectedPath(targetFilePath)
+        
+        console.log('Agent 5 targeted edit response processed successfully:', {
+          materialId,
+          materialTitle,
+          filePath: targetFilePath,
+          changeType: targetedChange.type,
+          description: targetedChange.description
+        })
+      } else {
+        console.warn('File not found in course file store:', targetFilePath)
+      }
+    } catch (error) {
+      console.error('Error handling Agent 5 targeted edit response:', error)
     }
   }
 

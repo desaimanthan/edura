@@ -8,6 +8,7 @@ import { ResearchProgressDashboard } from "@/components/progress/ResearchProgres
 import { GenerationProgressDashboard } from "@/components/progress/GenerationProgressDashboard"
 import { AssessmentRenderer } from "@/components/assessment/AssessmentRenderer"
 import { AssessmentFromDatabase } from "@/components/assessment/AssessmentFromDatabase"
+import { DiffPreviewModal } from "@/components/ui/diff-preview-modal"
 
 // Dynamically import TOAST UI Editor for true WYSIWYG editing
 const ToastEditor = dynamic(
@@ -377,7 +378,7 @@ const TrueWYSIWYGEditor = ({
     }
   }, [targetedChange, content, editMode])
 
-  // Update content when prop changes (important for streaming)
+  // Update content when prop changes (important for streaming and updates)
   useEffect(() => {
     setMarkdownContent(content)
     setHasChanges(false)
@@ -394,17 +395,25 @@ const TrueWYSIWYGEditor = ({
       }
     }
     
-    // Update viewer content if it exists and we're NOT in edit mode (but only if no highlighting is active)
-    if (viewerRef.current && !editMode && !highlightedContent) {
+    // CRITICAL FIX: Force update viewer content when content changes
+    // This ensures the WYSIWYG viewer shows the latest content after targeted edits
+    if (viewerRef.current && !editMode) {
       try {
         // Add research loader if needed before setting content
         const contentWithLoader = addResearchLoader(content)
-        viewerRef.current.getInstance().setMarkdown(contentWithLoader)
+        // Force re-render by using a timestamp to break any caching
+        viewerRef.current.getInstance().setMarkdown(contentWithLoader + '\n<!-- Updated: ' + Date.now() + ' -->')
+        // Then immediately set the correct content without the timestamp
+        setTimeout(() => {
+          if (viewerRef.current && !editMode) {
+            viewerRef.current.getInstance().setMarkdown(contentWithLoader)
+          }
+        }, 10)
       } catch (error) {
         // Silent error handling
       }
     }
-  }, [content, editMode, onHasChangesChange, highlightedContent])
+  }, [content, editMode, onHasChangesChange])
 
 
   // Update parent when hasChanges changes
@@ -645,6 +654,234 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
   const [currentEditedContent, setCurrentEditedContent] = useState<string>("")
   const [generatingAssessment, setGeneratingAssessment] = useState(false)
   const [assessmentTitle, setAssessmentTitle] = useState<string>("")
+  
+  // Diff preview modal state
+  const [showDiffModal, setShowDiffModal] = useState(false)
+  const [diffModalData, setDiffModalData] = useState<{
+    originalContent: string
+    modifiedContent: string
+    changeDescription: string
+    materialTitle?: string
+  } | null>(null)
+  const [processingApproval, setProcessingApproval] = useState(false)
+
+  // Handle targeted changes - show diff modal when targetedChange is present
+  useEffect(() => {
+    if (selectedFile?.targetedChange) {
+      console.log('Detected targetedChange in file-preview:', selectedFile.targetedChange)
+      
+      // CRITICAL FIX: Use the data directly from Agent 5's response
+      const targetedChange = selectedFile.targetedChange as any
+      
+      // Check if we have the required data for diff modal
+      if (targetedChange.originalContent && targetedChange.modifiedContent) {
+        // Use the original and modified content directly from Agent 5
+        setDiffModalData({
+          originalContent: targetedChange.originalContent,
+          modifiedContent: targetedChange.modifiedContent,
+          changeDescription: targetedChange.description || 'Content modification',
+          materialTitle: targetedChange.materialTitle || selectedFile.displayTitle || selectedFile.name
+        })
+        
+        // Show the diff modal immediately
+        setShowDiffModal(true)
+        console.log('Diff modal triggered with Agent 5 data')
+      } else if (targetedChange.coordinates) {
+        // Fallback: Generate the modified content based on coordinates (legacy approach)
+        const originalContent = selectedFile.content || ''
+        const lines = originalContent.split('\n')
+        const targetLine = targetedChange.coordinates.start_line - 1
+        
+        if (targetLine >= 0 && targetLine < lines.length) {
+          const modifiedLines = [...lines]
+          const originalLine = lines[targetLine]
+          const targetText = targetedChange.coordinates.exact_text_to_replace
+          const replacementText = targetedChange.coordinates.replacement_text
+          
+          if (originalLine.includes(targetText)) {
+            modifiedLines[targetLine] = originalLine.replace(targetText, replacementText)
+            const modifiedContent = modifiedLines.join('\n')
+            
+            // Set up diff modal data
+            setDiffModalData({
+              originalContent,
+              modifiedContent,
+              changeDescription: targetedChange.description,
+              materialTitle: selectedFile.displayTitle || selectedFile.name
+            })
+            
+            // Show the diff modal
+            setShowDiffModal(true)
+            console.log('Diff modal triggered with coordinate-based approach')
+          }
+        }
+      } else {
+        console.warn('targetedChange detected but missing required data:', targetedChange)
+      }
+    }
+  }, [selectedFile?.targetedChange])
+
+  // Handle diff approval
+  const handleDiffApproval = async () => {
+    if (!selectedFile || !diffModalData) return
+    
+    setProcessingApproval(true)
+    
+    try {
+      // Get course ID from URL
+      const pathParts = window.location.pathname.split('/')
+      const courseId = pathParts[pathParts.indexOf('create') + 1]
+      
+      if (!courseId) {
+        alert('Course ID not found')
+        return
+      }
+      
+      // Get auth token
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        alert('Authentication required. Please sign in again.')
+        return
+      }
+      
+      // CRITICAL FIX: Get material ID from targetedChange data
+      const targetedChange = selectedFile.targetedChange as any
+      const materialId = targetedChange?.materialId
+      
+      if (!materialId) {
+        alert('Material ID not found in targeted change data')
+        return
+      }
+      
+      // Send approval to Agent 5's apply_targeted_edit function via chat API
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}/chat`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: `Apply targeted edit for material ${materialId} - APPROVED`,
+          context_hints: {
+            workflow_step: 'targeted_edit_approval',
+            material_id: materialId,
+            material_title: selectedFile.displayTitle || selectedFile.name,
+            edit_approved: true,
+            modified_content: diffModalData.modifiedContent
+          }
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))
+        throw new Error(errorData.detail || `HTTP ${response.status}`)
+      }
+      
+      // CRITICAL FIX: Update the file content with the approved changes
+      // AND force refresh the R2 content if it's an R2 file
+      if (selectedFile && onFileUpdate) {
+        const updatedFile = {
+          ...selectedFile,
+          content: diffModalData.modifiedContent,
+          targetedChange: undefined // Clear the targeted change after approval
+        }
+        onFileUpdate(updatedFile)
+        
+        // If this is an R2 file, update the R2 content state as well
+        if (selectedFile.url && (selectedFile.status === 'saved' || selectedFile.isR2File)) {
+          setR2Content(diffModalData.modifiedContent)
+          // Update the cache to prevent re-fetching old content
+          setContentCache(prev => new Map(prev).set(selectedFile.url!, diffModalData.modifiedContent))
+        }
+      }
+      
+      // Close the modal
+      setShowDiffModal(false)
+      setDiffModalData(null)
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`Failed to approve changes: ${errorMessage}`)
+    } finally {
+      setProcessingApproval(false)
+    }
+  }
+
+  // Handle diff rejection
+  const handleDiffRejection = async () => {
+    if (!selectedFile) return
+    
+    setProcessingApproval(true)
+    
+    try {
+      // Get course ID from URL
+      const pathParts = window.location.pathname.split('/')
+      const courseId = pathParts[pathParts.indexOf('create') + 1]
+      
+      if (!courseId) {
+        alert('Course ID not found')
+        return
+      }
+      
+      // Get auth token
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        alert('Authentication required. Please sign in again.')
+        return
+      }
+      
+      // CRITICAL FIX: Get material ID from targetedChange data
+      const targetedChange = selectedFile.targetedChange as any
+      const materialId = targetedChange?.materialId
+      
+      if (!materialId) {
+        alert('Material ID not found in targeted change data')
+        return
+      }
+      
+      // Send rejection to Agent 5's apply_targeted_edit function via chat API
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}/chat`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: `Apply targeted edit for material ${materialId} - REJECTED`,
+          context_hints: {
+            workflow_step: 'targeted_edit_approval',
+            material_id: materialId,
+            material_title: selectedFile.displayTitle || selectedFile.name,
+            edit_approved: false
+          }
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))
+        throw new Error(errorData.detail || `HTTP ${response.status}`)
+      }
+      
+      // Clear the targeted change from the file
+      if (selectedFile && onFileUpdate) {
+        const updatedFile = {
+          ...selectedFile,
+          targetedChange: undefined
+        }
+        onFileUpdate(updatedFile)
+      }
+      
+      // Close the modal
+      setShowDiffModal(false)
+      setDiffModalData(null)
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`Failed to reject changes: ${errorMessage}`)
+    } finally {
+      setProcessingApproval(false)
+    }
+  }
 
   // Function to generate assessment content using Agent 5
   const handleGenerateAssessment = async () => {
@@ -1471,6 +1708,24 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         {renderFileContent()}
       </div>
+      
+      {/* Diff Preview Modal */}
+      {diffModalData && (
+        <DiffPreviewModal
+          isOpen={showDiffModal}
+          onClose={() => {
+            setShowDiffModal(false)
+            setDiffModalData(null)
+          }}
+          onApprove={handleDiffApproval}
+          onReject={handleDiffRejection}
+          originalContent={diffModalData.originalContent}
+          modifiedContent={diffModalData.modifiedContent}
+          changeDescription={diffModalData.changeDescription}
+          materialTitle={diffModalData.materialTitle}
+          isProcessing={processingApproval}
+        />
+      )}
     </div>
   )
 }
