@@ -922,7 +922,7 @@ class CourseFileStore {
         const token = localStorage.getItem('auth_token')
         if (!token) return
 
-        const response = await fetch(`http://localhost:8000/courses/${courseId}`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -1014,7 +1014,7 @@ class CourseFileStore {
         return
       }
       
-      const response = await fetch(`http://localhost:8000/courses/${courseId}/content-materials`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}/content-materials`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

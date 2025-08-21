@@ -1,10 +1,9 @@
 import axios from 'axios';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { API_BASE_URL, API_ENDPOINTS, logApiCall } from './api-config';
 
 // Configure axios to suppress console errors in development
 const apiClient = axios.create({
-  baseURL: API_URL,
+  baseURL: API_BASE_URL,
   // Suppress axios console errors
   validateStatus: function (status) {
     // Don't throw errors for any status code - we'll handle them manually
@@ -64,7 +63,8 @@ class AuthService {
   }
 
   async login(email: string, password: string): Promise<User> {
-    const response = await apiClient.post<AuthResponse>('/auth/login', {
+    logApiCall('POST', API_ENDPOINTS.AUTH.LOGIN, { email });
+    const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGIN, {
       email,
       password,
     });
@@ -98,7 +98,8 @@ class AuthService {
   }
 
   async register(name: string, email: string, password: string): Promise<void> {
-    const response = await apiClient.post('/auth/register', {
+    logApiCall('POST', API_ENDPOINTS.AUTH.REGISTER, { name, email });
+    const response = await apiClient.post(API_ENDPOINTS.AUTH.REGISTER, {
       name,
       email,
       password,
@@ -121,7 +122,8 @@ class AuthService {
   async getCurrentUser(): Promise<User | null> {
     if (!this.token) return null;
 
-    const response = await apiClient.get<User>('/auth/me', {
+    logApiCall('GET', API_ENDPOINTS.AUTH.ME);
+    const response = await apiClient.get<User>(API_ENDPOINTS.AUTH.ME, {
       headers: {
         Authorization: `Bearer ${this.token}`,
       },
@@ -143,7 +145,8 @@ class AuthService {
 
   async logout(): Promise<void> {
     if (this.token) {
-      await apiClient.post('/auth/logout', {}, {
+      logApiCall('POST', API_ENDPOINTS.AUTH.LOGOUT);
+      await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT, {}, {
         headers: {
           Authorization: `Bearer ${this.token}`,
         },
@@ -153,7 +156,8 @@ class AuthService {
   }
 
   async getGoogleAuthUrl(): Promise<string> {
-    const response = await apiClient.get('/auth/google/login');
+    logApiCall('GET', API_ENDPOINTS.AUTH.GOOGLE_LOGIN);
+    const response = await apiClient.get(API_ENDPOINTS.AUTH.GOOGLE_LOGIN);
     
     // Handle error responses manually
     if (response.status >= 500) {

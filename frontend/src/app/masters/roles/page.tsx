@@ -69,7 +69,7 @@ export default function Roles() {
     try {
       const token = localStorage.getItem('auth_token')
       
-      const response = await fetch('http://localhost:8000/masters/permissions/', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/masters/permissions/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -105,7 +105,7 @@ export default function Roles() {
       const token = localStorage.getItem('auth_token')
       const roleId = getId(editingRole)
       
-      const response = await fetch(`http://localhost:8000/masters/roles/${roleId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/masters/roles/${roleId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -199,7 +199,7 @@ export default function Roles() {
     try {
       const token = localStorage.getItem('auth_token')
       
-      const response = await fetch(`http://localhost:8000/masters/roles/${roleId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/masters/roles/${roleId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -230,7 +230,7 @@ export default function Roles() {
       setLoading(true)
       const token = localStorage.getItem('auth_token')
       
-      const response = await fetch('http://localhost:8000/masters/roles/', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/masters/roles/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',

@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
+import { API_ENDPOINTS, getApiUrl, logApiCall } from "@/lib/api-config"
 
 interface Course {
   id: string
@@ -77,7 +78,9 @@ export default function Courses() {
         return
       }
 
-      const response = await fetch("http://localhost:8000/courses", {
+      const url = getApiUrl(API_ENDPOINTS.COURSES.LIST)
+      logApiCall('GET', API_ENDPOINTS.COURSES.LIST)
+      const response = await fetch(url, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -117,7 +120,9 @@ export default function Courses() {
     setDeleting(true)
     try {
       const token = localStorage.getItem("auth_token")
-      const response = await fetch(`http://localhost:8000/courses/${selectedCourse.id}`, {
+      const url = getApiUrl(API_ENDPOINTS.COURSES.DETAIL(selectedCourse.id))
+      logApiCall('DELETE', API_ENDPOINTS.COURSES.DETAIL(selectedCourse.id))
+      const response = await fetch(url, {
         method: "DELETE",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -147,16 +152,19 @@ export default function Courses() {
     setUpdating(true)
     try {
       const token = localStorage.getItem("auth_token")
-      const response = await fetch(`http://localhost:8000/courses/${selectedCourse.id}`, {
+      const url = getApiUrl(API_ENDPOINTS.COURSES.DETAIL(selectedCourse.id))
+      const requestBody = {
+        name: editForm.name,
+        description: editForm.description,
+      }
+      logApiCall('PUT', API_ENDPOINTS.COURSES.DETAIL(selectedCourse.id), requestBody)
+      const response = await fetch(url, {
         method: "PUT",
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: editForm.name,
-          description: editForm.description,
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       if (!response.ok) {

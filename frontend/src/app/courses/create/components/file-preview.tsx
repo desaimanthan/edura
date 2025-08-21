@@ -670,7 +670,7 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
       }
       
       // Call the chat API to trigger Agent 5 assessment generation
-      const response = await fetch(`http://localhost:8000/courses/${courseId}/chat`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}/chat`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -766,7 +766,7 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
       }
 
       // Fetch assessment data from the API
-      const response = await fetch(`http://localhost:8000/courses/${courseId}/assessment/${materialId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}/assessment/${materialId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1373,7 +1373,7 @@ export function FilePreview({ selectedFile, onFileUpdate }: FilePreviewProps) {
       }
       
       // Call the save API endpoint with correct URL and auth
-      const response = await fetch(`http://localhost:8000/courses/${courseId}/save-file`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}/save-file`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -104,7 +104,7 @@ export default function CreateCourse() {
             return
           }
 
-          const courseResponse = await fetch(`http://localhost:8000/courses/${courseId}`, {
+          const courseResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}`, {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
@@ -192,14 +192,14 @@ export default function CreateCourse() {
       const token = localStorage.getItem('auth_token')
       
       // Determine the correct endpoint based on modification type
-      let endpoint = `http://localhost:8000/courses/${courseId}/generate-course-design`
+      let endpoint = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}/generate-course-design`
       let requestBody: Record<string, unknown> = { focus }
       
       if (modificationType === 'research') {
-        endpoint = `http://localhost:8000/courses/${courseId}/generate-research`
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}/generate-research`
         requestBody = { focus_area: focus }
       } else if (modificationType === 'modification') {
-        endpoint = `http://localhost:8000/courses/${courseId}/modify-course-design`
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}/modify-course-design`
         requestBody = { modification_request: focus }
       } else {
       }
@@ -604,7 +604,7 @@ export default function CreateCourse() {
                     setTimeout(async () => {
                       try {
                         const token = localStorage.getItem('auth_token')
-                        const courseResponse = await fetch(`http://localhost:8000/courses/${courseId}`, {
+                        const courseResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}`, {
                           headers: {
                             'Authorization': `Bearer ${token}`,
                             'Content-Type': 'application/json'

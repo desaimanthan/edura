@@ -96,7 +96,7 @@ export default function UsersManagement() {
     try {
       const token = localStorage.getItem('auth_token')
       
-      const response = await fetch('http://localhost:8000/masters/roles/', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/masters/roles/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -133,7 +133,7 @@ export default function UsersManagement() {
       const token = localStorage.getItem('auth_token')
       const userId = getId(editingUser)
       
-      const response = await fetch(`http://localhost:8000/users/${userId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/users/${userId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -189,7 +189,7 @@ export default function UsersManagement() {
       setAdding(true)
       const token = localStorage.getItem('auth_token')
       
-      const response = await fetch('http://localhost:8000/users/', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/users/`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -241,7 +241,7 @@ export default function UsersManagement() {
     try {
       const token = localStorage.getItem('auth_token')
       
-      const response = await fetch(`http://localhost:8000/users/${userId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/users/${userId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -272,7 +272,7 @@ export default function UsersManagement() {
       setLoading(true)
       const token = localStorage.getItem('auth_token')
       
-      const response = await fetch('http://localhost:8000/users/', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/users/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',

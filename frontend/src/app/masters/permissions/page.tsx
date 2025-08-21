@@ -62,7 +62,7 @@ export default function Permissions() {
       setLoading(true)
       const token = localStorage.getItem('auth_token')
       
-      const response = await fetch('http://localhost:8000/masters/permissions/', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/masters/permissions/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -90,7 +90,7 @@ export default function Permissions() {
       const token = localStorage.getItem('auth_token')
       
       // Fetch categories (previously resources)
-      const categoriesResponse = await fetch('http://localhost:8000/masters/permissions/resources', {
+      const categoriesResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/masters/permissions/resources`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -98,7 +98,7 @@ export default function Permissions() {
       })
       
       // Fetch actions
-      const actionsResponse = await fetch('http://localhost:8000/masters/permissions/actions', {
+      const actionsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/masters/permissions/actions`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -168,8 +168,8 @@ export default function Permissions() {
       const token = localStorage.getItem('auth_token')
       
       const url = editingPermission 
-        ? `http://localhost:8000/masters/permissions/${getId(editingPermission)}`
-        : 'http://localhost:8000/masters/permissions/'
+        ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/masters/permissions/${getId(editingPermission)}`
+        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/masters/permissions/`
       
       const method = editingPermission ? 'PUT' : 'POST'
       
@@ -221,7 +221,7 @@ export default function Permissions() {
     try {
       const token = localStorage.getItem('auth_token')
       
-      const response = await fetch(`http://localhost:8000/masters/permissions/${getId(permission)}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/masters/permissions/${getId(permission)}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

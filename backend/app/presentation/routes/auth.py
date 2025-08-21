@@ -268,7 +268,8 @@ async def google_login(request: Request):
     """Initiate Google OAuth login"""
     try:
         # Create redirect URI
-        redirect_uri = f"http://localhost:8000/auth/google/callback"
+        backend_url = config('BACKEND_URL', 'http://localhost:8000')
+        redirect_uri = f"{backend_url}/auth/google/callback"
         
         # Manual OAuth URL construction to avoid SSL issues during server metadata loading
         google_auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -310,7 +311,7 @@ async def google_callback(request: Request):
             'client_secret': config('GOOGLE_CLIENT_SECRET'),
             'code': code,
             'grant_type': 'authorization_code',
-            'redirect_uri': 'http://localhost:8000/auth/google/callback'
+            'redirect_uri': f"{config('BACKEND_URL', 'http://localhost:8000')}/auth/google/callback"
         }
         
         async with get_development_client() as client:

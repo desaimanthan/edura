@@ -81,7 +81,7 @@ export function AssessmentFromDatabase({ selectedFile }: AssessmentFromDatabaseP
         }
 
         // Fetch assessment data from the API
-        const response = await fetch(`http://localhost:8000/courses/${courseId}/assessment/${materialId}`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${courseId}/assessment/${materialId}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,

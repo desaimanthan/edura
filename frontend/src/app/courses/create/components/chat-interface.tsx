@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Send, Bot, User, Sparkles, Upload, Building2, Check, Edit3 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { courseFileOperations } from "@/lib/courseFileStore"
+import { API_ENDPOINTS, getApiUrl, logApiCall } from "@/lib/api-config"
 
 // Simple markdown renderer for chat messages
 const SimpleMarkdownRenderer = ({ content }: { content: string }) => {
@@ -158,7 +159,9 @@ export function ChatInterface({
       if (!courseId && messages.length === 0 && !isLoadingMessages) {
         try {
           const token = localStorage.getItem('auth_token')
-          const response = await fetch('http://localhost:8000/courses/chat', {
+          const url = getApiUrl(API_ENDPOINTS.CHAT)
+          logApiCall('POST', API_ENDPOINTS.CHAT, { content: '__WELCOME_TRIGGER__' })
+          const response = await fetch(url, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -209,7 +212,9 @@ export function ChatInterface({
     setIsLoadingMessages(true)
     try {
       const token = localStorage.getItem('auth_token')
-      const response = await fetch(`http://localhost:8000/courses/${courseId}/messages`, {
+      const url = getApiUrl(API_ENDPOINTS.COURSES.MESSAGES(courseId))
+      logApiCall('GET', API_ENDPOINTS.COURSES.MESSAGES(courseId))
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -265,7 +270,9 @@ export function ChatInterface({
   const createDraftCourse = async () => {
     try {
       const token = localStorage.getItem('auth_token')
-      const response = await fetch('http://localhost:8000/courses/create-draft', {
+      const url = getApiUrl(API_ENDPOINTS.COURSES.CREATE_DRAFT)
+      logApiCall('POST', API_ENDPOINTS.COURSES.CREATE_DRAFT)
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -340,13 +347,13 @@ export function ChatInterface({
       let requestBody: Record<string, unknown>
       
       if (isMaterialContentRequest && targetCourseId) {
-        endpoint = `http://localhost:8000/courses/${targetCourseId}/chat-material-content`
+        endpoint = getApiUrl(API_ENDPOINTS.COURSES.CHAT_MATERIAL_CONTENT(targetCourseId))
         requestBody = { message: messageContent }
       } else {
         // Use regular chat endpoint
         endpoint = targetCourseId 
-          ? `http://localhost:8000/courses/${targetCourseId}/chat`
-          : 'http://localhost:8000/courses/chat'
+          ? getApiUrl(API_ENDPOINTS.COURSES.CHAT(targetCourseId))
+          : getApiUrl(API_ENDPOINTS.CHAT)
 
         // Enhanced request body with workflow context hints
         requestBody = { content: messageContent }
@@ -361,6 +368,7 @@ export function ChatInterface({
         }
       }
 
+      logApiCall('POST', endpoint, requestBody)
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -709,7 +717,10 @@ export function ChatInterface({
                     setShowQuickActions(true)
                     
                     const token = localStorage.getItem('auth_token')
-                    const courseResponse = await fetch(`http://localhost:8000/courses/${courseCreatedResult.course_id || courseId}`, {
+                    const targetCourseId = (courseCreatedResult.course_id as string) || courseId || ''
+                    const courseUrl = getApiUrl(API_ENDPOINTS.COURSES.DETAIL(targetCourseId))
+                    logApiCall('GET', API_ENDPOINTS.COURSES.DETAIL(targetCourseId))
+                    const courseResponse = await fetch(courseUrl, {
                       headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -771,8 +782,9 @@ export function ChatInterface({
       }
 
       const token = localStorage.getItem('auth_token')
-      const endpoint = `http://localhost:8000/courses/${targetCourseId}/chat`
+      const endpoint = getApiUrl(API_ENDPOINTS.COURSES.CHAT(targetCourseId))
 
+      logApiCall('POST', API_ENDPOINTS.COURSES.CHAT(targetCourseId), { content: actionMessage })
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -829,22 +841,25 @@ export function ChatInterface({
       
       // CRITICAL FIX: For approval actions, use the regular chat endpoint but ensure proper workflow context
       // The backend ConversationOrchestrator will handle the workflow transition correctly
-      const endpoint = `http://localhost:8000/courses/${targetCourseId}/chat`
+      const endpoint = getApiUrl(API_ENDPOINTS.COURSES.CHAT(targetCourseId))
 
+      const requestBody = { 
+        content: actionMessage,
+        // Add context hint to help the orchestrator understand this is a structure approval
+        context_hints: {
+          current_step: 'content_structure_approval',
+          action_type: action === 'approve' ? 'structure_approval' : 'structure_modification'
+        }
+      }
+
+      logApiCall('POST', API_ENDPOINTS.COURSES.CHAT(targetCourseId), requestBody)
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
-          content: actionMessage,
-          // Add context hint to help the orchestrator understand this is a structure approval
-          context_hints: {
-            current_step: 'content_structure_approval',
-            action_type: action === 'approve' ? 'structure_approval' : 'structure_modification'
-          }
-        })
+        body: JSON.stringify(requestBody)
       })
 
       if (response.ok) {
@@ -893,8 +908,9 @@ export function ChatInterface({
       const token = localStorage.getItem('auth_token')
       
       // Use dedicated material content endpoint for approval actions
-      const endpoint = `http://localhost:8000/courses/${targetCourseId}/chat-material-content`
+      const endpoint = getApiUrl(API_ENDPOINTS.COURSES.CHAT_MATERIAL_CONTENT(targetCourseId))
 
+      logApiCall('POST', API_ENDPOINTS.COURSES.CHAT_MATERIAL_CONTENT(targetCourseId), { message: actionMessage })
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -948,7 +964,9 @@ export function ChatInterface({
       const token = localStorage.getItem('auth_token')
       
       // Call the content structure generation endpoint directly
-      const response = await fetch(`http://localhost:8000/courses/${targetCourseId}/generate-content-structure`, {
+      const url = getApiUrl(API_ENDPOINTS.COURSES.GENERATE_CONTENT_STRUCTURE(targetCourseId))
+      logApiCall('POST', API_ENDPOINTS.COURSES.GENERATE_CONTENT_STRUCTURE(targetCourseId), { focus: null })
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -986,7 +1004,9 @@ export function ChatInterface({
       const formData = new FormData()
       formData.append('file', selectedFile)
 
-      const response = await fetch(`http://localhost:8000/courses/${currentCourseId}/upload-curriculum`, {
+      const url = getApiUrl(API_ENDPOINTS.COURSES.UPLOAD_CURRICULUM(currentCourseId))
+      logApiCall('POST', API_ENDPOINTS.COURSES.UPLOAD_CURRICULUM(currentCourseId))
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -1114,7 +1134,9 @@ export function ChatInterface({
     
     try {
       const token = localStorage.getItem('auth_token')
-      const response = await fetch(`http://localhost:8000/courses/${courseId}/generate-research`, {
+      const url = getApiUrl(API_ENDPOINTS.COURSES.GENERATE_RESEARCH(courseId))
+      logApiCall('POST', API_ENDPOINTS.COURSES.GENERATE_RESEARCH(courseId), { focus_area: focusArea })
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1212,15 +1234,16 @@ export function ChatInterface({
       const token = localStorage.getItem('auth_token')
       
       // Call the backend to generate content for the specific material
-      const response = await fetch(`http://localhost:8000/courses/${courseId}/chat`, {
+      const url = getApiUrl(API_ENDPOINTS.COURSES.CHAT(courseId))
+      const requestBody = { content: `Generate content for material: ${materialTitle}` }
+      logApiCall('POST', API_ENDPOINTS.COURSES.CHAT(courseId), requestBody)
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
-          content: `Generate content for material: ${materialTitle}` 
-        })
+        body: JSON.stringify(requestBody)
       })
 
       if (response.ok) {
@@ -1250,15 +1273,16 @@ export function ChatInterface({
       const token = localStorage.getItem('auth_token')
       
       // Connect to the dedicated MaterialContentGeneratorAgent streaming endpoint
-      const response = await fetch(`http://localhost:8000/courses/${courseId}/generate-material-content`, {
+      const url = getApiUrl(API_ENDPOINTS.COURSES.GENERATE_MATERIAL_CONTENT(courseId))
+      const requestBody = { material_id: null } // Start content generation process (will auto-generate first material)
+      logApiCall('POST', API_ENDPOINTS.COURSES.GENERATE_MATERIAL_CONTENT(courseId), requestBody)
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
-          material_id: null // Start content generation process (will auto-generate first material)
-        })
+        body: JSON.stringify(requestBody)
       })
 
       if (!response.ok) {
@@ -1347,7 +1371,9 @@ export function ChatInterface({
   const handleContentStructureStreaming = async (courseId: string) => {
     try {
       const token = localStorage.getItem('auth_token')
-      const response = await fetch(`http://localhost:8000/courses/${courseId}/generate-content-structure`, {
+      const url = getApiUrl(API_ENDPOINTS.COURSES.GENERATE_CONTENT_STRUCTURE(courseId))
+      logApiCall('POST', API_ENDPOINTS.COURSES.GENERATE_CONTENT_STRUCTURE(courseId), { focus: null })
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
