@@ -77,16 +77,31 @@ async def register_user(user: UserCreate):
             detail="Email already registered"
         )
     
+    # Check teacher approval setting
+    from ...database import get_database
+    db = await get_database()
+    settings_collection = db.system_settings
+    approval_setting = await settings_collection.find_one({"setting_key": "teacher_approval_required"})
+    teacher_approval_required = approval_setting["setting_value"] if approval_setting else True  # Default to True
+    
     # Determine role and activation status based on intended role
     intended_role = user.intended_role_name or "Student"
     print(f"🔍 Backend Debug - Final intended role: {intended_role}")
+    print(f"🔍 Backend Debug - Teacher approval required: {teacher_approval_required}")
     
     if intended_role == "Teacher":
-        # Teacher signup requires approval
         role_id = await get_role_id_by_name("Teacher")
-        is_active = False
-        approval_status = "pending"
-        message = "Teacher account created successfully. Your account is pending admin approval."
+        
+        if teacher_approval_required:
+            # Teacher signup requires approval
+            is_active = False
+            approval_status = "pending"
+            message = "Teacher account created successfully. Your account is pending admin approval."
+        else:
+            # Teacher signup is immediate (approval flow disabled)
+            is_active = True
+            approval_status = "approved"
+            message = "Teacher account created successfully. You can now sign in."
     else:
         # Student signup is immediate
         role_id = await get_role_id_by_name("Student")
@@ -429,15 +444,30 @@ async def google_callback(request: Request):
             
             user_obj = UserInDB(**user)
         else:
+            # Check teacher approval setting
+            from ...database import get_database
+            db = await get_database()
+            settings_collection = db.system_settings
+            approval_setting = await settings_collection.find_one({"setting_key": "teacher_approval_required"})
+            teacher_approval_required = approval_setting["setting_value"] if approval_setting else True  # Default to True
+            
             # Use the intended role from the decoded state parameter
             print(f"🔍 Backend Debug - Creating new user with intended role: {intended_role}")
+            print(f"🔍 Backend Debug - Teacher approval required: {teacher_approval_required}")
             
             if intended_role == "Teacher":
-                # Teacher signup requires approval even for Google OAuth
                 role_id = await get_role_id_by_name("Teacher")
-                is_active = False
-                approval_status = "pending"
-                print(f"🔍 Backend Debug - Teacher role selected, requires approval")
+                
+                if teacher_approval_required:
+                    # Teacher signup requires approval even for Google OAuth
+                    is_active = False
+                    approval_status = "pending"
+                    print(f"🔍 Backend Debug - Teacher role selected, requires approval")
+                else:
+                    # Teacher signup is immediate (approval flow disabled)
+                    is_active = True
+                    approval_status = "approved"
+                    print(f"🔍 Backend Debug - Teacher role selected, immediate access (approval disabled)")
             else:
                 # Student signup is immediate
                 role_id = await get_role_id_by_name("Student")
@@ -622,27 +652,54 @@ async def update_oauth_role(
             "requires_approval": True
         }
     
+    # Check teacher approval setting
+    from ...database import get_database
+    db = await get_database()
+    settings_collection = db.system_settings
+    approval_setting = await settings_collection.find_one({"setting_key": "teacher_approval_required"})
+    teacher_approval_required = approval_setting["setting_value"] if approval_setting else True  # Default to True
+    
     if intended_role == "Teacher":
-        # Teacher role requires approval
         teacher_role_id = await get_role_id_by_name("Teacher")
         
-        update_data = {
-            "role_id": teacher_role_id,
-            "is_active": False,  # Deactivate until approved
-            "approval_status": "pending",
-            "requested_role_name": intended_role,
-            "updated_at": datetime.utcnow()
-        }
-        
-        await users_collection.update_one(
-            {"_id": current_user.id},
-            {"$set": update_data}
-        )
-        
-        return {
-            "message": "Teacher role requested successfully. Your account is pending admin approval.",
-            "requires_approval": True
-        }
+        if teacher_approval_required:
+            # Teacher role requires approval
+            update_data = {
+                "role_id": teacher_role_id,
+                "is_active": False,  # Deactivate until approved
+                "approval_status": "pending",
+                "requested_role_name": intended_role,
+                "updated_at": datetime.utcnow()
+            }
+            
+            await users_collection.update_one(
+                {"_id": current_user.id},
+                {"$set": update_data}
+            )
+            
+            return {
+                "message": "Teacher role requested successfully. Your account is pending admin approval.",
+                "requires_approval": True
+            }
+        else:
+            # Teacher role is immediate (approval flow disabled)
+            update_data = {
+                "role_id": teacher_role_id,
+                "is_active": True,
+                "approval_status": "approved",
+                "requested_role_name": intended_role,
+                "updated_at": datetime.utcnow()
+            }
+            
+            await users_collection.update_one(
+                {"_id": current_user.id},
+                {"$set": update_data}
+            )
+            
+            return {
+                "message": "Teacher role updated successfully. You can now access teacher features.",
+                "requires_approval": False
+            }
     else:
         # Student role - no change needed as OAuth users default to Student
         return {

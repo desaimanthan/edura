@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { RouteGuard } from "@/components/auth/route-guard"
-import { BookOpen, Plus, Users, Clock, Star, Edit, Trash2, Eye } from "lucide-react"
+import { BookOpen, Plus, Users, Clock, Star, Edit, Trash2, Eye, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -54,6 +54,11 @@ interface Course {
   // Legacy cover image field (for backward compatibility)
   cover_image_public_url?: string
   enrolled_students?: number
+  // Publishing fields
+  is_published?: boolean
+  published_at?: string
+  published_by?: string
+  public_access_key?: string
 }
 
 export default function Courses() {
@@ -209,7 +214,16 @@ export default function Courses() {
     setDeleteDialogOpen(true)
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, isPublished?: boolean) => {
+    // If the course is published, show published badge regardless of status
+    if (isPublished) {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+          Published
+        </span>
+      )
+    }
+    
     const statusColors = {
       draft: "bg-gray-100 text-gray-800",
       creating: "bg-yellow-100 text-yellow-800",
@@ -361,7 +375,7 @@ export default function Courses() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
                           <h3 className="text-xl font-bold truncate">{course.name}</h3>
-                          {getStatusBadge(course.status)}
+                          {getStatusBadge(course.status, course.is_published)}
                         </div>
                         {/* Description with 1-line limit and ellipsis */}
                         <p className="text-sm text-muted-foreground line-clamp-1 mb-2 w-[90%]">
@@ -383,15 +397,28 @@ export default function Courses() {
                     {/* Action buttons in same line */}
                     <div className="flex items-center space-x-2">
                       <Link href={`/courses/create/${course.id}`}>
-                        <Button variant="outline" size="sm" className="h-9 px-3">
+                        <Button variant="outline" size="sm" className="h-9 px-3" title="Edit Course">
                           <Eye className="h-4 w-4" />
                         </Button>
                       </Link>
+                      {course.is_published && (
+                        <Link href={`/courses/view/${course.id}`} target="_blank">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-9 px-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            title="View Published Course"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      )}
                       <Button 
                         variant="outline" 
                         size="sm" 
                         className="h-9 px-3"
                         onClick={() => openEditDialog(course)}
+                        title="Edit Details"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -400,6 +427,7 @@ export default function Courses() {
                         size="sm" 
                         className="h-9 px-3 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300"
                         onClick={() => openDeleteDialog(course)}
+                        title="Delete Course"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

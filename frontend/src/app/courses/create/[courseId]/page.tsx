@@ -2,12 +2,22 @@
 
 import { useEffect, useState, use, useRef } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { Bot } from "lucide-react"
+import { Bot, Share2 } from "lucide-react"
 import { CourseStructure } from "../components/course-structure"
 import { FilePreview } from "../components/file-preview"
 import { ChatInterface } from "../components/chat-interface"
 import { useRouter } from "next/navigation"
 import { courseFileOperations } from "@/lib/courseFileStore"
+import { Button } from "@/components/ui/button"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
+import { toast } from "sonner"
 
 interface ProgressData {
   type: 'research' | 'generation'
@@ -87,6 +97,8 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
   const [loading, setLoading] = useState(true)
   const [successMessage, setSuccessMessage] = useState<string>('')
   const [successMessageTimestamp, setSuccessMessageTimestamp] = useState<number>(0)
+  const [publishDrawerOpen, setPublishDrawerOpen] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const isLoadingCourse = useRef(false)
   const researchCompletedRef = useRef(false) // Prevent infinite loops
   const lastUpdateRef = useRef<string>('')
@@ -208,10 +220,15 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
         router.push('/auth/signin')
         return
       } else if (courseResponse.status === 404) {
-        router.push('/courses/create')
+        // Course not found - this is a real error
+        toast.error('Course not found')
+        router.push('/courses')
         return
       } else {
-        router.push('/courses/create')
+        // Other errors - log but don't redirect for published courses
+        console.error('Error loading course:', courseResponse.status)
+        toast.error('Failed to load course')
+        router.push('/courses')
         return
       }
 
@@ -779,6 +796,62 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
     }
   }
 
+  const handlePublishCourse = async () => {
+    if (!course) return
+
+    setPublishing(true)
+    try {
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/courses/${resolvedParams.courseId}/publish`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          generate_access_key: false
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || 'Failed to publish course')
+      }
+
+      const result = await response.json()
+      
+      // Update course state to reflect published status
+      setCourse(prev => prev ? {
+        ...prev,
+        status: 'active',
+        is_published: true,
+        published_at: result.published_at
+      } : null)
+
+      toast.success('Course published successfully!')
+      setPublishDrawerOpen(false)
+
+      // Optionally redirect to the public view or show the public URL
+      if (result.public_url) {
+        toast.success(`Public URL: ${window.location.origin}${result.public_url}`)
+      }
+
+    } catch (error) {
+      console.error('Error publishing course:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to publish course')
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  // Check if course has content ready to publish
+  // Course can be published if it has course design or structure generated
+  const canPublish = course && (
+    course.course_design_public_url || 
+    course.structure || 
+    (course.status !== 'draft' && course.status !== 'creating')
+  )
+
   if (loading) {
     return (
       <DashboardLayout 
@@ -818,6 +891,78 @@ export default function CourseChat({ params }: { params: Promise<{ courseId: str
       showBackButton={true}
       backUrl="/courses"
       backLabel="Back to Courses"
+      actions={
+        <Sheet open={publishDrawerOpen} onOpenChange={setPublishDrawerOpen}>
+          <SheetTrigger asChild>
+            <Button 
+              variant="default" 
+              size="sm"
+              disabled={!canPublish}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Share2 className="h-4 w-4 mr-2" />
+              Publish Course
+            </Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Publish Course</SheetTitle>
+              <SheetDescription>
+                Make your course available to students. This will create a public, read-only version of your course content.
+              </SheetDescription>
+            </SheetHeader>
+            
+            <div className="mt-6 space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 mb-2">What will be published:</h4>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• Course name and description</li>
+                  <li>• All content materials (slides, assessments)</li>
+                  <li>• Course structure and modules</li>
+                  <li>• Cover image</li>
+                </ul>
+              </div>
+              
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <h4 className="font-medium text-amber-900 mb-2">What will NOT be published:</h4>
+                <ul className="text-sm text-amber-800 space-y-1">
+                  <li>• Course design documents</li>
+                  <li>• Research materials</li>
+                  <li>• AI copilot interface</li>
+                  <li>• Editing capabilities</li>
+                </ul>
+              </div>
+              
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h4 className="font-medium text-green-900 mb-2">After publishing:</h4>
+                <ul className="text-sm text-green-800 space-y-1">
+                  <li>• Students can access the course content</li>
+                  <li>• Course will be marked as &quot;Active&quot;</li>
+                  <li>• You can unpublish anytime</li>
+                  <li>• You&apos;ll get a shareable public URL</li>
+                </ul>
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <Button 
+                  onClick={handlePublishCourse}
+                  disabled={publishing}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  {publishing ? 'Publishing...' : 'Publish Course'}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setPublishDrawerOpen(false)}
+                  disabled={publishing}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+      }
     >
       <div className="flex-1 min-h-0 grid grid-cols-[300px_1fr_400px] gap-6 overflow-hidden">
         {/* Course Structure - Left Column */}

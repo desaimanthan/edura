@@ -65,6 +65,9 @@ async def get_user_courses(
     for course in courses:
         course["_id"] = str(course["_id"])
         course["user_id"] = str(course["user_id"])
+        # Convert published_by ObjectId to string if it exists
+        if course.get("published_by"):
+            course["published_by"] = str(course["published_by"])
     
     return [CourseResponse(**course) for course in courses]
 
@@ -923,6 +926,7 @@ async def stream_research_generation(course_id: str, user_id: str, focus_area: O
         yield f"data: {json.dumps(error_event)}\n\n"
 
 from pydantic import BaseModel
+import secrets
 
 class CourseDesignGenerateRequest(BaseModel):
     focus: Optional[str] = None
@@ -1708,4 +1712,260 @@ async def get_assessment_data(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get assessment data: {str(e)}"
+        )
+
+# ============================================================================
+# COURSE PUBLISHING ENDPOINTS
+# ============================================================================
+
+class CoursePublishRequest(BaseModel):
+    generate_access_key: bool = False  # Whether to generate a private access key
+
+class CoursePublishResponse(BaseModel):
+    success: bool
+    message: str
+    public_url: Optional[str] = None
+    access_key: Optional[str] = None
+    published_at: datetime
+
+@router.post("/{course_id}/publish", response_model=CoursePublishResponse)
+async def publish_course(
+    course_id: str,
+    request: CoursePublishRequest,
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """Publish a course for public access"""
+    print(f"\n📢📢📢 [PUBLISH COURSE ENDPOINT] Publishing course: {course_id}")
+    print(f"   👤 User: {current_user.id}")
+    print(f"   🔑 Generate access key: {request.generate_access_key}")
+    
+    try:
+        db = await get_database()
+        
+        if not ObjectId.is_valid(course_id):
+            print(f"❌ [PUBLISH COURSE] Invalid course ID: {course_id}")
+            raise HTTPException(status_code=400, detail="Invalid course ID")
+        
+        # Verify course belongs to user
+        course = await db.courses.find_one({
+            "_id": ObjectId(course_id),
+            "user_id": current_user.id
+        })
+        
+        if not course:
+            print(f"❌ [PUBLISH COURSE] Course not found: {course_id}")
+            raise HTTPException(status_code=404, detail="Course not found")
+        
+        print(f"✅ [PUBLISH COURSE] Course found: {course.get('name')}")
+        
+        # Check if course has content to publish
+        materials_count = await db.content_materials.count_documents({
+            "course_id": ObjectId(course_id),
+            "content_status": "completed"
+        })
+        
+        if materials_count == 0:
+            print(f"❌ [PUBLISH COURSE] No completed content materials found")
+            raise HTTPException(
+                status_code=400, 
+                detail="Course must have completed content materials before publishing"
+            )
+        
+        # Generate access key if requested
+        access_key = None
+        if request.generate_access_key:
+            access_key = secrets.token_urlsafe(32)
+        
+        # Update course with publishing information
+        published_at = datetime.utcnow()
+        update_data = {
+            "is_published": True,
+            "published_at": published_at,
+            "published_by": current_user.id,
+            "status": "active",  # Mark course as active when published
+            "updated_at": published_at
+        }
+        
+        if access_key:
+            update_data["public_access_key"] = access_key
+        
+        await db.courses.update_one(
+            {"_id": ObjectId(course_id)},
+            {"$set": update_data}
+        )
+        
+        # Generate public URL
+        public_url = f"/courses/view/{course_id}"
+        if access_key:
+            public_url += f"?key={access_key}"
+        
+        print(f"✅ [PUBLISH COURSE] Course published successfully")
+        
+        return CoursePublishResponse(
+            success=True,
+            message="Course published successfully",
+            public_url=public_url,
+            access_key=access_key,
+            published_at=published_at
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌❌❌ [PUBLISH COURSE] CRITICAL ERROR: {str(e)}")
+        import traceback
+        print(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to publish course: {str(e)}"
+        )
+
+@router.post("/{course_id}/unpublish")
+async def unpublish_course(
+    course_id: str,
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """Unpublish a course (remove from public access)"""
+    print(f"\n📢❌ [UNPUBLISH COURSE ENDPOINT] Unpublishing course: {course_id}")
+    print(f"   👤 User: {current_user.id}")
+    
+    try:
+        db = await get_database()
+        
+        if not ObjectId.is_valid(course_id):
+            print(f"❌ [UNPUBLISH COURSE] Invalid course ID: {course_id}")
+            raise HTTPException(status_code=400, detail="Invalid course ID")
+        
+        # Verify course belongs to user
+        course = await db.courses.find_one({
+            "_id": ObjectId(course_id),
+            "user_id": current_user.id
+        })
+        
+        if not course:
+            print(f"❌ [UNPUBLISH COURSE] Course not found: {course_id}")
+            raise HTTPException(status_code=404, detail="Course not found")
+        
+        if not course.get("is_published"):
+            print(f"❌ [UNPUBLISH COURSE] Course is not published")
+            raise HTTPException(status_code=400, detail="Course is not published")
+        
+        print(f"✅ [UNPUBLISH COURSE] Course found: {course.get('name')}")
+        
+        # Update course to unpublish
+        await db.courses.update_one(
+            {"_id": ObjectId(course_id)},
+            {"$set": {
+                "is_published": False,
+                "published_at": None,
+                "published_by": None,
+                "public_access_key": None,
+                "status": "creating",  # Revert to creating status
+                "updated_at": datetime.utcnow()
+            }}
+        )
+        
+        print(f"✅ [UNPUBLISH COURSE] Course unpublished successfully")
+        
+        return {
+            "success": True,
+            "message": "Course unpublished successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌❌❌ [UNPUBLISH COURSE] CRITICAL ERROR: {str(e)}")
+        import traceback
+        print(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to unpublish course: {str(e)}"
+        )
+
+@router.get("/{course_id}/public")
+async def get_public_course_data(
+    course_id: str,
+    access_key: Optional[str] = None
+):
+    """Get public course data (no authentication required)"""
+    print(f"\n🌐🌐🌐 [PUBLIC COURSE DATA ENDPOINT] Getting public data for course: {course_id}")
+    print(f"   🔑 Access key provided: {bool(access_key)}")
+    
+    try:
+        db = await get_database()
+        
+        if not ObjectId.is_valid(course_id):
+            print(f"❌ [PUBLIC COURSE DATA] Invalid course ID: {course_id}")
+            raise HTTPException(status_code=400, detail="Invalid course ID")
+        
+        # Get course
+        course = await db.courses.find_one({"_id": ObjectId(course_id)})
+        
+        if not course:
+            print(f"❌ [PUBLIC COURSE DATA] Course not found: {course_id}")
+            raise HTTPException(status_code=404, detail="Course not found")
+        
+        # Check if course is published
+        if not course.get("is_published"):
+            print(f"❌ [PUBLIC COURSE DATA] Course is not published")
+            raise HTTPException(status_code=404, detail="Course not found")
+        
+        # Check access key if required
+        if course.get("public_access_key"):
+            if not access_key or access_key != course.get("public_access_key"):
+                print(f"❌ [PUBLIC COURSE DATA] Invalid or missing access key")
+                raise HTTPException(status_code=403, detail="Access denied")
+        
+        print(f"✅ [PUBLIC COURSE DATA] Course found: {course.get('name')}")
+        
+        # Get content materials (only completed ones)
+        materials_cursor = db.content_materials.find({
+            "course_id": ObjectId(course_id),
+            "content_status": "completed"
+        }).sort([("module_number", 1), ("chapter_number", 1), ("slide_number", 1)])
+        
+        materials = await materials_cursor.to_list(None)
+        
+        # Convert ObjectIds to strings for materials
+        formatted_materials = []
+        for material in materials:
+            material["_id"] = str(material["_id"])
+            material["course_id"] = str(material["course_id"])
+            formatted_materials.append(material)
+        
+        # Prepare filtered course data (exclude internal fields)
+        public_course_data = {
+            "id": str(course["_id"]),
+            "name": course["name"],
+            "description": course.get("description"),
+            "learning_outcomes": course.get("learning_outcomes", []),
+            "prerequisites": course.get("prerequisites", []),
+            "cover_image_large_public_url": course.get("cover_image_large_public_url"),
+            "cover_image_medium_public_url": course.get("cover_image_medium_public_url"),
+            "cover_image_small_public_url": course.get("cover_image_small_public_url"),
+            "cover_image_public_url": course.get("cover_image_public_url"),  # Legacy fallback
+            "content_structure": course.get("content_structure", {}),
+            "total_content_items": course.get("total_content_items", 0),
+            "completed_content_items": course.get("completed_content_items", 0),
+            "published_at": course.get("published_at"),
+            "materials": formatted_materials
+        }
+        
+        print(f"✅ [PUBLIC COURSE DATA] Returning public data with {len(formatted_materials)} materials")
+        
+        return {
+            "success": True,
+            "course": public_course_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌❌❌ [PUBLIC COURSE DATA] CRITICAL ERROR: {str(e)}")
+        import traceback
+        print(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get public course data: {str(e)}"
         )

@@ -56,7 +56,7 @@ export const API_ENDPOINTS = {
   
   // Courses
   COURSES: {
-    LIST: '/courses',
+    LIST: '/courses/',  // Added trailing slash to prevent redirect
     CREATE_DRAFT: '/courses/create-draft',
     DETAIL: (courseId: string) => `/courses/${courseId}`,
     MESSAGES: (courseId: string) => `/courses/${courseId}/messages`,

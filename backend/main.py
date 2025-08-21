@@ -6,7 +6,7 @@ import uvicorn
 import time
 import os
 
-from app.presentation.routes import auth, users, roles, permissions, courses
+from app.presentation.routes import auth, users, roles, permissions, courses, settings
 from app.database import connect_to_mongo, close_mongo_connection
 
 # Determine if we're in production
@@ -103,6 +103,7 @@ app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(roles.router, prefix="/masters/roles", tags=["roles"])
 app.include_router(permissions.router, prefix="/masters/permissions", tags=["permissions"])
 app.include_router(courses.router, prefix="/courses", tags=["courses"])
+app.include_router(settings.router, prefix="/settings", tags=["settings"])
 
 @app.get("/")
 async def root():

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { RouteGuard } from "@/components/auth/route-guard"
-import { Users, Shield, Key, ChevronRight, Settings } from "lucide-react"
+import { Users, Shield, Key, ChevronRight, Settings, Sliders } from "lucide-react"
 
 const masterItems = [
   {
@@ -31,6 +31,14 @@ const masterItems = [
     icon: Key,
     bgColor: "bg-purple-100",
     iconColor: "text-purple-600",
+  },
+  {
+    title: "System Settings",
+    description: "Configure system-wide settings and preferences",
+    href: "/masters/settings",
+    icon: Sliders,
+    bgColor: "bg-orange-100",
+    iconColor: "text-orange-600",
   },
 ]
 

@@ -49,7 +49,7 @@ class ImageGenerationAgent:
                 color_palette = self._generate_dynamic_color_palette(course_name, course_description, style_preference)
             
             # Step 2: Create detailed prompt based on course context
-            prompt = await self._create_course_image_prompt(course_name, course_description, style_preference, color_palette, "cover")
+            prompt = self._create_course_image_prompt(course_name, course_description, style_preference, color_palette, "cover")
             
             # Step 3: Generate image using OpenAI gpt-image-1
             openai_response = await self.openai.generate_image(
@@ -182,19 +182,8 @@ class ImageGenerationAgent:
         }
         return contrast_map.get(style, 'medium')
 
-    async def _create_course_image_prompt(self, image_name: str, image_description: str, style: str, color_palette: Optional[Dict[str, Any]] = None, image_type: str = "cover", calling_agent: str = None, context: Dict[str, Any] = None) -> str:
+    def _create_course_image_prompt(self, image_name: str, image_description: str, style: str, color_palette: Optional[Dict[str, Any]] = None, image_type: str = "cover") -> str:
         """Create detailed prompt for course image generation (covers, slides, etc.)"""
-        
-        # HYBRID LOGIC: Preserve existing behavior for Course Creation Agent, dynamic for others
-        if calling_agent == "course_creation_agent":
-            # PRESERVE EXISTING HARDCODED BEHAVIOR for Course Creation Agent
-            return await self._create_legacy_course_image_prompt(image_name, image_description, style, color_palette, image_type)
-        else:
-            # DYNAMIC BEHAVIOR for all other agents
-            return await self._create_dynamic_course_image_prompt(image_name, image_description, style, color_palette, image_type, context)
-    
-    async def _create_legacy_course_image_prompt(self, image_name: str, image_description: str, style: str, color_palette: Optional[Dict[str, Any]] = None, image_type: str = "cover") -> str:
-        """Create legacy hardcoded prompt for course creation agent (preserves existing behavior)"""
         
         # Dynamic prompt based on image type
         if image_type == "slide":
@@ -384,245 +373,13 @@ QUALITY ASSURANCE:
 - Ensure the design accurately represents the course content and target audience"""
         
         return base_prompt
-    
-    async def _create_dynamic_course_image_prompt(self, image_name: str, image_description: str, style: str, color_palette: Optional[Dict[str, Any]] = None, image_type: str = "cover", context: Dict[str, Any] = None) -> str:
-        """Create dynamic AI-powered prompt for non-course-creation agents"""
-        
-        try:
-            print(f"🤖 \033[94m[ImageGenerationAgent]\033[0m \033[1mGenerating dynamic prompt for: {image_name}\033[0m")
-            
-            # Use AI to analyze the image request and generate optimal prompt prefix
-            analysis_prompt = f"""You are an expert image generation prompt creator. Analyze this image request and create the optimal prompt prefix for AI image generation.
 
-IMAGE REQUEST ANALYSIS:
-- Image Name: {image_name}
-- Image Description: {image_description}
-- Image Type: {image_type}
-- Style Preference: {style}
-- Context: {context if context else 'No additional context'}
-
-Your task is to determine what type of visual would be most effective and create the appropriate prompt prefix.
-
-AVAILABLE VISUAL TYPES:
-- Technical diagram: For explaining processes, systems, architectures
-- Infographic: For presenting data, comparisons, key points
-- Illustration: For concepts, ideas, abstract topics  
-- Process flow: For step-by-step procedures, workflows
-- Concept visualization: For abstract ideas, theories
-- Educational diagram: For learning materials, explanations
-- System architecture: For technical systems, frameworks
-- Comparison chart: For comparing options, features
-- Timeline: For historical progression, roadmaps
-- Mind map: For interconnected concepts
-
-PROMPT PREFIX EXAMPLES:
-- "Create a technical diagram illustrating"
-- "Create an educational infographic showing"
-- "Create a process flow diagram depicting"
-- "Create a concept visualization of"
-- "Create a system architecture diagram for"
-- "Create an illustration representing"
-- "Create a comparison infographic between"
-
-ANALYSIS GUIDELINES:
-1. Consider the image name and description to understand the content
-2. Determine what visual format would best serve the educational purpose
-3. Choose a prompt prefix that will generate the most effective visual aid
-4. Consider the target audience and learning objectives
-
-Respond with ONLY the optimal prompt prefix (ending with the image name in quotes):
-Example: Create a technical diagram illustrating: "{image_name}"
-"""
-
-            # Use AI to generate the optimal prompt prefix
-            messages = [
-                {"role": "system", "content": "You are an expert visual communication and prompt engineering specialist."},
-                {"role": "user", "content": analysis_prompt}
-            ]
-            
-            response = await self.openai.create_chat_completion(
-                model="gpt-4o-mini",  # Use a fast model for prompt generation
-                messages=messages,
-                max_tokens=100,
-                temperature=0.3
-            )
-            
-            dynamic_prefix = response.choices[0].message.content.strip()
-            
-            # Clean up the response to ensure it's just the prefix
-            if dynamic_prefix.startswith('"') and dynamic_prefix.endswith('"'):
-                dynamic_prefix = dynamic_prefix[1:-1]
-            
-            print(f"🤖 \033[94m[ImageGenerationAgent]\033[0m AI generated prefix: '{dynamic_prefix}'")
-            
-            # Build the complete dynamic prompt
-            base_prompt = f"""{dynamic_prefix}
-
-DYNAMIC IMAGE DESIGN REQUIREMENTS:
-- Professional educational aesthetic optimized for learning and comprehension
-- Clear, modern design with high visual impact and educational value
-- 3:2 widescreen format (1536x1024) optimized for digital learning platforms
-- High contrast elements for excellent readability across devices and contexts
-- Engaging and informative visual composition that enhances understanding
-- Scalable design that works at different sizes and viewing contexts
-
-EDUCATIONAL VISUAL COMPOSITION:
-- Clear visual hierarchy that guides attention to key information
-- Strategic use of white space for clean, uncluttered appearance
-- Professional design language appropriate for educational content
-- Visual elements that directly support learning objectives
-- Avoid decorative elements that distract from educational content
-
-CONTENT-SPECIFIC DESIGN ELEMENTS:
-- Incorporate visual metaphors and symbols that directly relate to the subject matter
-- Use imagery and graphics that clarify and reinforce key concepts
-- Include visual elements that would resonate with learners
-- Ensure the design communicates information clearly and effectively
-- Create visual hierarchy that emphasizes the most important educational points"""
-
-            # Add style preference
-            base_prompt += f"""
-
-STYLE PREFERENCE: {style}
-
-TECHNICAL SPECIFICATIONS:
-- High resolution (1536x1024) with crisp, clean details in 3:2 widescreen format
-- Professional lighting and smooth gradients optimized for educational content
-- Clean edges and polished finish suitable for learning materials
-- Optimized for digital display across educational platforms and devices
-- Consistent with modern educational design trends and accessibility standards"""
-
-            # Add dynamic color specifications if palette is provided
-            if color_palette and color_palette.get('llm_determined'):
-                base_prompt += f"""
-
-INTELLIGENT COLOR SELECTION:
-- Subject Theme: {color_palette['subject_theme']} (choose colors that best represent this subject area)
-- Color Temperature: {color_palette['color_temperature']} (overall warmth/coolness of the design)
-- Contrast Level: {color_palette['contrast_level']} (how bold the color contrasts should be)
-
-DYNAMIC COLOR GUIDELINES:
-- Analyze the content to determine the most appropriate and effective colors
-- Choose colors that enhance comprehension and engagement with the material
-- Use color psychology to support learning objectives and content retention
-- Ensure colors work harmoniously and maintain professional educational appearance
-- Maintain accessibility with proper contrast ratios for all learners
-- Create visual hierarchy through strategic and purposeful color placement"""
-            else:
-                base_prompt += """
-
-INTELLIGENT COLOR SELECTION:
-- Analyze the content and context to determine the most appropriate colors
-- Choose colors that enhance learning and comprehension of the material
-- Use a harmonious color palette that supports educational objectives
-- Consider color psychology to improve engagement and information retention
-- Professional color scheme appropriate for educational and learning content
-- Ensure colors work well together and maintain accessibility standards"""
-
-            # Add content-specific context if description provided
-            if image_description:
-                base_prompt += f"""
-
-CONTENT CONTEXT AND EDUCATIONAL FOCUS:
-{image_description}
-
-CONTENT-SPECIFIC VISUAL ELEMENTS:
-- Incorporate visual metaphors and symbols that directly relate to the educational content
-- Use imagery that reflects the key learning concepts and objectives
-- Include visual elements that would enhance understanding for the target audience
-- Ensure the design communicates the educational value proposition clearly
-- Create visual hierarchy that emphasizes the most important learning points
-- Support comprehension through clear, purposeful visual design choices"""
-
-            # Add style-specific instructions (same as legacy but adapted for dynamic content)
-            style_instructions = {
-                "professional_educational": """
-
-PROFESSIONAL EDUCATIONAL STYLE:
-- Use academic and professional color schemes that support learning
-- Incorporate clean lines and structured layouts that enhance comprehension
-- Include educational iconography and symbols that clarify concepts
-- Maintain formal yet approachable aesthetic suitable for diverse learners
-- Use typography-friendly layouts with clear hierarchy for information processing""",
-                
-                "modern": """
-
-MODERN CONTEMPORARY STYLE:
-- Use contemporary design elements and current visual trends
-- Incorporate dynamic gradients and modern color palettes that engage learners
-- Include geometric shapes and abstract elements that support content
-- Use bold, confident visual language that inspires learning
-- Emphasize innovation and forward-thinking educational approaches""",
-                
-                "colorful": """
-
-VIBRANT COLORFUL STYLE:
-- Use bright, energetic color combinations that motivate learning
-- Incorporate dynamic visual elements and patterns that enhance engagement
-- Create engaging, eye-catching compositions that capture attention
-- Maintain educational quality while being visually stimulating
-- Use color psychology to convey enthusiasm and learning excitement""",
-                
-                "minimalist": """
-
-MINIMALIST CLEAN STYLE:
-- Use simple, clean design with lots of white space for focus
-- Employ minimal color palette (2-3 colors maximum) for clarity
-- Focus on essential educational elements only
-- Use subtle, elegant visual elements that don't distract from learning
-- Emphasize clarity and simplicity in all educational design choices""",
-                
-                "tech_focused": """
-
-TECHNOLOGY-FOCUSED STYLE:
-- Use modern tech-inspired color schemes appropriate for technical content
-- Incorporate digital elements, diagrams, or tech-related visual metaphors
-- Use futuristic design elements and clean geometric shapes
-- Emphasize innovation and cutting-edge technological concepts
-- Include subtle tech patterns or grid systems that support technical learning"""
-            }
-            
-            if style in style_instructions:
-                base_prompt += style_instructions[style]
-            
-            # Add final quality assurance instructions
-            base_prompt += """
-
-EDUCATIONAL QUALITY ASSURANCE:
-- Ensure all visual elements support learning objectives and comprehension
-- Verify color contrast meets accessibility standards for all learners
-- Confirm the design effectively communicates educational content
-- Check that the overall composition enhances rather than hinders learning
-- Ensure the design accurately represents and supports the educational content"""
-            
-            return base_prompt
-            
-        except Exception as e:
-            print(f"❌ \033[94m[ImageGenerationAgent]\033[0m Error generating dynamic prompt: {e}")
-            # Fallback to a generic educational prompt
-            return f"""Create an educational visual for: "{image_name}"
-
-EDUCATIONAL DESIGN REQUIREMENTS:
-- Professional educational aesthetic suitable for learning platforms
-- Clear, modern design with high visual impact
-- 3:2 widescreen format (1536x1024) optimized for educational content
-- High contrast elements for excellent readability
-- Engaging visual composition that supports learning
-
-{f"CONTENT CONTEXT: {image_description}" if image_description else ""}
-
-STYLE PREFERENCE: {style}
-
-Create a visual that enhances understanding and supports educational objectives."""
-
-    async def generate_image(self, course_id: str, image_name: str,
+    async def generate_image(self, course_id: str, image_name: str, 
                            image_description: str = "", 
                            image_type: str = "cover",
                            filename: str = None,
                            style_preference: str = "professional_educational",
-                           dynamic_colors: bool = True,
-                           calling_agent: str = None,
-                           context: Dict[str, Any] = None) -> Dict[str, Any]:
+                           dynamic_colors: bool = True) -> Dict[str, Any]:
         """
         Generate and store any type of course image (cover, slide, thumbnail, etc.)
         
@@ -658,7 +415,7 @@ Create a visual that enhances understanding and supports educational objectives.
                 color_palette = self._generate_dynamic_color_palette(image_name, image_description, style_preference)
             
             # Step 2: Create detailed prompt based on image context and type
-            prompt = await self._create_course_image_prompt(image_name, image_description, style_preference, color_palette, image_type, calling_agent, context)
+            prompt = self._create_course_image_prompt(image_name, image_description, style_preference, color_palette, image_type)
             
             # Step 3: Generate image using OpenAI gpt-image-1
             openai_response = await self.openai.generate_image(
@@ -962,7 +719,7 @@ Create a visual that enhances understanding and supports educational objectives.
                 color_palette = self._generate_dynamic_color_palette(image_name, image_description, style_preference)
             
             # Step 2: Create detailed prompt based on image context and type
-            prompt = await self._create_course_image_prompt(image_name, image_description, style_preference, color_palette, image_type)
+            prompt = self._create_course_image_prompt(image_name, image_description, style_preference, color_palette, image_type)
             
             # Step 3: Generate image using OpenAI gpt-image-1
             openai_response = await self.openai.generate_image(

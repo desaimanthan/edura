@@ -237,6 +237,11 @@ class Course(BaseModel):
     total_content_items: int = 0  # Total number of content materials
     completed_content_items: int = 0  # Number of completed content materials
     structure_generated_at: Optional[datetime] = None  # When structure was generated
+    # Publishing fields
+    is_published: bool = False  # Whether course is published for public access
+    published_at: Optional[datetime] = None  # When course was published
+    published_by: Optional[PyObjectId] = None  # User who published the course
+    public_access_key: Optional[str] = None  # Optional access key for private sharing
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -300,6 +305,11 @@ class CourseResponse(BaseModel):
     total_content_items: int = 0  # Total number of content materials
     completed_content_items: int = 0  # Number of completed content materials
     structure_generated_at: Optional[datetime] = None  # When structure was generated
+    # Publishing fields
+    is_published: bool = False  # Whether course is published for public access
+    published_at: Optional[datetime] = None  # When course was published
+    published_by: Optional[str] = None  # User who published the course
+    public_access_key: Optional[str] = None  # Optional access key for private sharing
     created_at: datetime
     updated_at: datetime
 
@@ -519,3 +529,36 @@ class TeacherApprovalResponse(BaseModel):
     user_id: str
     action: str
     approved_by: str
+
+# System Settings Models
+class SystemSettings(BaseModel):
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    setting_key: str  # Unique key for the setting
+    setting_value: Any  # Value can be any type
+    setting_type: str  # "boolean", "string", "number", "json"
+    description: str  # Description of what this setting does
+    updated_by: Optional[PyObjectId] = None  # Admin who last updated
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
+class SystemSettingsUpdate(BaseModel):
+    setting_value: Any
+    
+class SystemSettingsResponse(BaseModel):
+    id: str = Field(alias="_id")
+    setting_key: str
+    setting_value: Any
+    setting_type: str
+    description: str
+    updated_by: Optional[str] = None
+    updated_at: datetime
+    created_at: datetime
+
+    class Config:
+        populate_by_name = True
+        json_encoders = {ObjectId: str}
