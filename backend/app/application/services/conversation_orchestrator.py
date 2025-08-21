@@ -72,6 +72,38 @@ class ConversationOrchestrator:
                 if context_hints.get('suggested_message'):
                     context['suggested_message'] = context_hints['suggested_message']
             
+            # CRITICAL FIX: Handle "Generate Course Structure" requests specially
+            # Check if structure generation is already in progress to prevent duplicates
+            if user_message.lower().strip() == 'generate course structure':
+                print(f"🎯 [ConversationOrchestrator] Detected 'Generate Course Structure' request")
+                
+                # Check if structure generation is already in progress
+                if course_id:
+                    from ...database import get_database
+                    from bson import ObjectId
+                    
+                    db = await get_database()
+                    course = await db.courses.find_one({"_id": ObjectId(course_id)})
+                    
+                    if course and course.get("structure_generation_in_progress", False):
+                        print(f"⚠️ [ConversationOrchestrator] Structure generation already in progress for course {course_id}")
+                        
+                        # Store user message
+                        await self.message_service.store_message(course_id, user_id, user_message, "user")
+                        
+                        # Return a helpful message with loading state
+                        loading_response = "🎯 **Content Structure Generation In Progress**\n\nI'm currently generating the course structure in the background. This process includes:\n\n- Analyzing course design and research\n- Creating module and chapter breakdown\n- Generating content material checklists\n- Organizing learning objectives and assessments\n\n*← Content structure will appear in real-time as it's generated*\n\nPlease wait for the generation to complete before requesting another structure generation."
+                        
+                        # Store the loading response
+                        await self.message_service.store_message(course_id, user_id, loading_response, "assistant")
+                        
+                        return {
+                            "response": loading_response,
+                            "course_id": course_id,
+                            "function_results": {},
+                            "generation_in_progress": True
+                        }
+            
             # Analyze user intent
             print(f"\n{'='*60}")
             print(f"🎯 \033[95m[ConversationOrchestrator]\033[0m \033[1mAnalyzing user intent...\033[0m")

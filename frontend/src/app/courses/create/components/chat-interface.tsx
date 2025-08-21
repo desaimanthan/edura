@@ -875,19 +875,6 @@ export function ChatInterface({
   const handleMaterialContentApprovalAction = async (action: 'approve' | 'modify') => {
     setShowMaterialContentApprovalActions(false)
     
-    // SIMPLIFIED: Show loading state immediately
-    if (action === 'approve') {
-      // Add a loading message for approval
-      const loadingMessage: Message = {
-        id: Date.now().toString(),
-        content: 'Generating content for next slide...',
-        sender: 'ai',
-        timestamp: new Date(),
-        isStreaming: true
-      }
-      setMessages(prev => [...prev, loadingMessage])
-    }
-    
     const actionMessage = action === 'approve' ? 'Approve and continue to next slide' : 'I want to modify this content'
     
     const userMessage: Message = {
@@ -968,21 +955,33 @@ export function ChatInterface({
 
       const token = localStorage.getItem('auth_token')
       
-      // Call the content structure generation endpoint directly
-      const url = getApiUrl(API_ENDPOINTS.COURSES.GENERATE_CONTENT_STRUCTURE(targetCourseId))
-      logApiCall('POST', API_ENDPOINTS.COURSES.GENERATE_CONTENT_STRUCTURE(targetCourseId), { focus: null })
-      const response = await fetch(url, {
+      // CRITICAL FIX: Use the regular chat endpoint instead of direct structure generation
+      // This prevents duplicate requests and allows the backend to handle the workflow properly
+      const endpoint = getApiUrl(API_ENDPOINTS.COURSES.CHAT(targetCourseId))
+
+      const requestBody = { 
+        content: actionMessage,
+        // Add context hint to help the orchestrator understand this is a structure generation request
+        context_hints: {
+          current_step: 'content_structure_generation',
+          action_type: 'structure_generation_request'
+        }
+      }
+
+      logApiCall('POST', API_ENDPOINTS.COURSES.CHAT(targetCourseId), requestBody)
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ focus: null })
+        body: JSON.stringify(requestBody)
       })
 
       if (response.ok) {
-        // Handle the streaming response for structure generation
-        await handleContentStructureStreaming(targetCourseId)
+        // Handle the streaming response through the regular chat handler
+        // This will properly handle both error messages and streaming events
+        await handleStreamingResponse(response, targetCourseId)
       } else {
         throw new Error('Failed to generate course structure')
       }
@@ -1080,17 +1079,15 @@ export function ChatInterface({
     const { scrollTop, scrollHeight, clientHeight } = messagesContainer
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight
     
-    // Auto-scroll if user is within 150px of the bottom or if it's a new conversation
-    return distanceFromBottom < 150 || messages.length <= 2
+    // Auto-scroll if user is within 100px of the bottom or if it's a new conversation
+    return distanceFromBottom < 100 || messages.length <= 2
   }
 
-  // Auto-scroll effect for messages
+  // Auto-scroll effect for messages - triggers on any message change
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (shouldAutoScroll()) {
-        scrollToBottom()
-      }
-    }, 100) // Small delay to ensure DOM is updated
+      scrollToBottom()
+    }, 50) // Reduced delay for more responsive scrolling
 
     return () => clearTimeout(timer)
   }, [messages])
@@ -1099,10 +1096,8 @@ export function ChatInterface({
   useEffect(() => {
     if (isTyping) {
       const interval = setInterval(() => {
-        if (shouldAutoScroll()) {
-          scrollToBottom()
-        }
-      }, 500) // Check every 500ms during streaming
+        scrollToBottom()
+      }, 300) // More frequent checks during streaming
 
       return () => clearInterval(interval)
     }

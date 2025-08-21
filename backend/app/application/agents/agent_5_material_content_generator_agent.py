@@ -452,6 +452,8 @@ Focus on creating high-quality educational content that enables effective self-s
             generation_result = await self._generate_slide_content(str(next_material["_id"]))
             
             if generation_result["success"]:
+                # Get the generated material data
+                generated_material = generation_result.get("material", {})
                 return {
                     "success": True,
                     "next_material": {
@@ -459,12 +461,13 @@ Focus on creating high-quality educational content that enables effective self-s
                         "title": next_material["title"],
                         "module_number": next_material["module_number"],
                         "chapter_number": next_material["chapter_number"],
-                        "material_type": next_material["material_type"]
+                        "material_type": next_material["material_type"],
+                        "slide_number": next_material.get("slide_number", 1)
                     },
                     "message": "Content generation started and first slide generated",
                     "auto_generate": True,  # Signal that auto-generation occurred
                     "first_slide_generated": True,
-                    "generated_material": generation_result.get("material", {})
+                    "generated_material": generated_material  # Pass the full material data
                 }
             else:
                 # If first slide generation failed, still return success but with error info
@@ -488,27 +491,41 @@ Focus on creating high-quality educational content that enables effective self-s
             return {"success": False, "error": f"Failed to start content generation: {str(e)}"}
     
     async def _get_next_material_to_process(self, course_id: str) -> Optional[Dict[str, Any]]:
-        """Get the next material that needs content generation"""
+        """Get the next material that needs content generation - STRICT chapter by chapter (slides then assessments)"""
         try:
-            # Query materials with content_status="not done", ordered by module, chapter, slide number
             db = await self.db.get_database()
             
+            # CRITICAL FIX: Use a simple, direct query to find the next material in proper sequence
+            # This ensures we get materials in the exact order they should be processed
             next_material = await db.content_materials.find_one(
                 {
                     "course_id": ObjectId(course_id),
                     "content_status": "not done"
                 },
-                sort=[
-                    ("module_number", 1),
-                    ("chapter_number", 1),
-                    ("slide_number", 1)
-                ]
+            sort=[
+                ("module_number", 1),
+                ("chapter_number", 1),
+                ("material_type", -1),  # This ensures slides come before assessments (reverse alphabetical: "slide" before "assessment")
+                ("slide_number", 1)
+            ]
             )
             
-            return next_material
+            if next_material:
+                print(f"📝 [MaterialContentGeneratorAgent] Next material found: {next_material['title']}")
+                print(f"   Type: {next_material['material_type']}")
+                print(f"   Location: Module {next_material['module_number']}, Chapter {next_material['chapter_number']}")
+                if next_material.get('slide_number'):
+                    print(f"   Slide: {next_material['slide_number']}")
+                print(f"   Status: {next_material.get('content_status', 'unknown')}")
+                return next_material
+            else:
+                print(f"✅ [MaterialContentGeneratorAgent] No more materials to process - all complete!")
+                return None
             
         except Exception as e:
             print(f"❌ [MaterialContentGeneratorAgent] Error getting next material: {e}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
             return None
     
     async def _get_current_material_to_approve(self) -> Optional[Dict[str, Any]]:
@@ -648,7 +665,8 @@ Focus on creating high-quality educational content that enables effective self-s
                 
                 return result_data
             
-            # Send content generation start event
+            # Send content generation start event with proper file path
+            file_path = self._get_material_file_path(material)
             await self._send_streaming_event({
                 "type": "material_content_start",
                 "material_id": material_id,
@@ -657,8 +675,20 @@ Focus on creating high-quality educational content that enables effective self-s
                 "module_number": material["module_number"],
                 "chapter_number": material["chapter_number"],
                 "slide_number": material.get("slide_number", 1),
-                "file_path": self._get_material_file_path(material),
+                "file_path": file_path,
+                "display_path": f"Module {material['module_number']}/Chapter {material['chapter_number']}/{material['title']}",
                 "message": f"Starting content generation for {material['title']}"
+            })
+            
+            # CRITICAL: Send a separate event to trigger file selection in frontend
+            await self._send_streaming_event({
+                "type": "select_file",
+                "file_path": file_path,
+                "material_id": material_id,
+                "title": material["title"],
+                "module_number": material["module_number"],
+                "chapter_number": material["chapter_number"],
+                "slide_number": material.get("slide_number", 1)
             })
             
             # Update status to generating
@@ -1424,11 +1454,12 @@ Example structure:
             return "Interactive learning with examples and practice"
     
     def _analyze_content_for_images(self, content: str, material: Dict[str, Any]) -> List[Dict[str, str]]:
-        """Analyze content to identify where images would be helpful"""
+        """Analyze content to identify where images would be helpful - ENHANCED VERSION"""
         try:
             image_requests = []
             
-            # Look for new #image {} format first
+            # Look for explicit image requests first
+            # New #image {} format
             new_image_pattern = r'#image\s*\{([^}]+)\}'
             new_matches = re.findall(new_image_pattern, content)
             
@@ -1437,10 +1468,11 @@ Example structure:
                     "description": description.strip(),
                     "placement": f"image_{i+1}",
                     "context": material.get('title', 'Course Material'),
-                    "format": "new"
+                    "format": "new",
+                    "type": "explicit"
                 })
             
-            # Also look for legacy [IMAGE_REQUEST: ] format for backward compatibility
+            # Legacy [IMAGE_REQUEST: ] format for backward compatibility
             legacy_image_pattern = r'\[IMAGE_REQUEST:\s*([^\]]+)\]'
             legacy_matches = re.findall(legacy_image_pattern, content)
             
@@ -1449,8 +1481,14 @@ Example structure:
                     "description": description.strip(),
                     "placement": f"image_{i+1}",
                     "context": material.get('title', 'Course Material'),
-                    "format": "legacy"
+                    "format": "legacy",
+                    "type": "explicit"
                 })
+            
+            # ENHANCEMENT: Intelligent content analysis for automatic image suggestions
+            if len(image_requests) == 0:  # Only suggest if no explicit requests
+                auto_suggestions = self._suggest_images_from_content(content, material)
+                image_requests.extend(auto_suggestions)
             
             return image_requests
             
@@ -1458,102 +1496,380 @@ Example structure:
             print(f"❌ [MaterialContentGeneratorAgent] Error analyzing content for images: {e}")
             return []
     
+    def _suggest_images_from_content(self, content: str, material: Dict[str, Any]) -> List[Dict[str, str]]:
+        """Intelligently suggest images based on content analysis"""
+        try:
+            suggestions = []
+            content_lower = content.lower()
+            
+            # Define content patterns that benefit from visual aids
+            visual_patterns = {
+                # Process/workflow patterns
+                'process': {
+                    'keywords': ['process', 'workflow', 'steps', 'procedure', 'methodology', 'approach', 'framework'],
+                    'description': 'A process flow diagram showing the step-by-step {topic} workflow with clear stages and connections'
+                },
+                # Comparison patterns
+                'comparison': {
+                    'keywords': ['vs', 'versus', 'compare', 'comparison', 'difference', 'contrast', 'alternative'],
+                    'description': 'A comparison infographic highlighting the key differences and similarities between {topic} options'
+                },
+                # Architecture/system patterns
+                'architecture': {
+                    'keywords': ['architecture', 'system', 'structure', 'components', 'framework', 'model', 'design'],
+                    'description': 'A system architecture diagram illustrating the {topic} components and their relationships'
+                },
+                # Data/statistics patterns
+                'data': {
+                    'keywords': ['data', 'statistics', 'metrics', 'analytics', 'performance', 'results', 'trends'],
+                    'description': 'An infographic displaying key {topic} data and statistics in a visually appealing format'
+                },
+                # Concept/theory patterns
+                'concept': {
+                    'keywords': ['concept', 'theory', 'principle', 'idea', 'notion', 'understanding'],
+                    'description': 'A conceptual illustration representing the core {topic} principles and relationships'
+                },
+                # Timeline/history patterns
+                'timeline': {
+                    'keywords': ['history', 'evolution', 'timeline', 'development', 'progression', 'chronology'],
+                    'description': 'A timeline visualization showing the historical development and evolution of {topic}'
+                },
+                # Benefits/advantages patterns
+                'benefits': {
+                    'keywords': ['benefits', 'advantages', 'pros', 'value', 'impact', 'outcomes'],
+                    'description': 'An infographic showcasing the key benefits and positive impacts of {topic}'
+                },
+                # Technology/tools patterns
+                'technology': {
+                    'keywords': ['technology', 'tools', 'software', 'platform', 'solution', 'implementation'],
+                    'description': 'A technology stack diagram showing the {topic} tools and their integration'
+                }
+            }
+            
+            # Analyze content for patterns
+            detected_patterns = []
+            for pattern_name, pattern_info in visual_patterns.items():
+                keyword_matches = sum(1 for keyword in pattern_info['keywords'] if keyword in content_lower)
+                if keyword_matches >= 2:  # Require at least 2 keyword matches
+                    detected_patterns.append((pattern_name, pattern_info, keyword_matches))
+            
+            # Sort by relevance (number of keyword matches)
+            detected_patterns.sort(key=lambda x: x[2], reverse=True)
+            
+            # Generate suggestions for top patterns (max 2 to avoid overwhelming)
+            for i, (pattern_name, pattern_info, matches) in enumerate(detected_patterns[:2]):
+                topic = material.get('title', 'the topic').lower()
+                description = pattern_info['description'].format(topic=topic)
+                
+                suggestions.append({
+                    "description": description,
+                    "placement": f"auto_image_{i+1}",
+                    "context": material.get('title', 'Course Material'),
+                    "format": "auto_suggestion",
+                    "type": "intelligent_suggestion",
+                    "pattern": pattern_name,
+                    "confidence": min(matches / 5.0, 1.0)  # Normalize confidence score
+                })
+            
+            # Special case: If no patterns detected but content is long, suggest a summary visual
+            if not suggestions and len(content) > 1000:
+                topic = material.get('title', 'the topic').lower()
+                suggestions.append({
+                    "description": f"A comprehensive visual summary of {topic} highlighting the key points and takeaways",
+                    "placement": "summary_image",
+                    "context": material.get('title', 'Course Material'),
+                    "format": "auto_suggestion",
+                    "type": "summary_visual",
+                    "pattern": "summary",
+                    "confidence": 0.6
+                })
+            
+            if suggestions:
+                print(f"🤖 [MaterialContentGeneratorAgent] Auto-suggested {len(suggestions)} images based on content analysis")
+                for suggestion in suggestions:
+                    print(f"   - {suggestion['pattern']}: {suggestion['description'][:60]}...")
+            
+            return suggestions
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error suggesting images from content: {e}")
+            return []
+    
     async def _generate_and_integrate_images(self, content: str, image_requests: List[Dict[str, str]], 
                                            material: Dict[str, Any], course: Dict[str, Any]) -> str:
-        """Generate images and integrate them into content"""
+        """Generate images and integrate them into content - ENHANCED VERSION"""
         try:
             if not self.image_agent:
                 print("⚠️ [MaterialContentGeneratorAgent] Image agent not available")
                 return content
             
             enhanced_content = content
-            print(f"🔍 [MaterialContentGeneratorAgent] Starting image integration with {len(image_requests)} requests")
+            print(f"🔍 [MaterialContentGeneratorAgent] Starting enhanced image integration with {len(image_requests)} requests")
             print(f"🔍 [MaterialContentGeneratorAgent] Original content length: {len(content)}")
+            
+            # Track successful integrations for reporting
+            successful_integrations = 0
+            failed_integrations = 0
             
             for i, image_request in enumerate(image_requests):
                 try:
-                    print(f"🔍 [MaterialContentGeneratorAgent] Processing image request {i+1}: format='{image_request.get('format')}', description='{image_request['description'][:50]}...'")
+                    request_type = image_request.get('type', 'explicit')
+                    request_format = image_request.get('format', 'unknown')
+                    confidence = image_request.get('confidence', 1.0)
+                    
+                    print(f"🔍 [MaterialContentGeneratorAgent] Processing image request {i+1}:")
+                    print(f"   Type: {request_type}")
+                    print(f"   Format: {request_format}")
+                    print(f"   Confidence: {confidence}")
+                    print(f"   Description: '{image_request['description'][:50]}...'")
+                    
+                    # Skip low-confidence auto-suggestions if we already have explicit images
+                    if request_type == 'intelligent_suggestion' and confidence < 0.7 and successful_integrations > 0:
+                        print(f"⏭️ [MaterialContentGeneratorAgent] Skipping low-confidence suggestion (already have {successful_integrations} images)")
+                        continue
                     
                     # Extract image description for this request
                     image_description = image_request['description']
                     
-                    # Generate image using the image agent
+                    # Enhanced context for better image generation
+                    enhanced_context = {
+                        "content_type": "educational_material",
+                        "learning_objective": material.get('description'),
+                        "material_type": material['material_type'],
+                        "purpose": "content_illustration",
+                        "request_type": request_type,
+                        "pattern": image_request.get('pattern', 'general'),
+                        "confidence": confidence,
+                        "slide_context": material.get('title', 'Course Material')
+                    }
+                    
+                    # Determine image style based on request type and pattern
+                    image_style = self._determine_image_style(image_request, material)
+                    
+                    # Generate image using the image agent with enhanced parameters
                     image_result = await self.image_agent.generate_image_multi_size(
-                course_id=str(material["course_id"]),
-                image_name=f"{material['title']} - {image_description}",
-                image_description=image_description,
-                image_type="slide_content",
-                filename=f"slide_{material.get('slide_number', i+1)}_image_{i+1}",
-                style_preference="professional_educational",
-                dynamic_colors=True,
-                calling_agent="material_content_generator",
-                context={
-                    "content_type": "educational_material",
-                    "learning_objective": material.get('description'),
-                    "material_type": material['material_type'],
-                    "purpose": "content_illustration"
-                }
-            )
+                        course_id=str(material["course_id"]),
+                        image_name=f"{material['title']} - {image_description}",
+                        image_description=image_description,
+                        image_type="slide_content",
+                        filename=f"slide_{material.get('slide_number', i+1)}_image_{i+1}",
+                        style_preference=image_style,
+                        dynamic_colors=True,
+                        calling_agent="material_content_generator",
+                        context=enhanced_context
+                    )
                     
                     if image_result["success"]:
                         # Get medium size image URL for content integration
                         medium_image_url = image_result["images"]["medium"]["public_url"]
-                        print(f"🔍 [MaterialContentGeneratorAgent] Image generated successfully: {medium_image_url}")
+                        print(f"✅ [MaterialContentGeneratorAgent] Image generated successfully: {medium_image_url}")
                         
-                        # Replace image request with actual image markdown
-                        image_markdown = f"![{image_request['description']}]({medium_image_url})\n*{image_request['description']}*"
+                        # Create enhanced image markdown with better formatting
+                        image_markdown = self._create_enhanced_image_markdown(
+                            image_request, medium_image_url, image_result
+                        )
                         
-                        # Handle both new #image {} format and legacy [IMAGE_REQUEST: ] format
+                        # Handle different placeholder formats
+                        replacement_successful = False
+                        
                         if image_request.get('format') == 'new':
                             # New format: #image {description}
                             placeholder = f"#image {{{image_request['description']}}}"
-                        else:
+                            if placeholder in enhanced_content:
+                                enhanced_content = enhanced_content.replace(placeholder, image_markdown)
+                                replacement_successful = True
+                        elif image_request.get('format') == 'legacy':
                             # Legacy format: [IMAGE_REQUEST: description]
                             placeholder = f"[IMAGE_REQUEST: {image_request['description']}]"
-                        
-                        print(f"🔍 [MaterialContentGeneratorAgent] Replacing placeholder: '{placeholder[:50]}...'")
-                        print(f"🔍 [MaterialContentGeneratorAgent] With image markdown: '{image_markdown[:100]}...'")
-                        print(f"🔍 [MaterialContentGeneratorAgent] Placeholder exists in content: {placeholder in enhanced_content}")
-                        
-                        # Perform the replacement
-                        content_before_replacement = enhanced_content
-                        enhanced_content = enhanced_content.replace(placeholder, image_markdown)
-                        
-                        # Verify replacement worked
-                        replacement_successful = placeholder not in enhanced_content
-                        content_length_changed = len(enhanced_content) != len(content_before_replacement)
-                        
-                        print(f"🔍 [MaterialContentGeneratorAgent] Replacement successful: {replacement_successful}")
-                        print(f"🔍 [MaterialContentGeneratorAgent] Content length changed: {content_length_changed} ({len(content_before_replacement)} -> {len(enhanced_content)})")
+                            if placeholder in enhanced_content:
+                                enhanced_content = enhanced_content.replace(placeholder, image_markdown)
+                                replacement_successful = True
+                        elif image_request.get('format') == 'auto_suggestion':
+                            # Auto-suggestion: Insert at strategic location
+                            enhanced_content = await self._insert_auto_suggested_image(
+                                enhanced_content, image_markdown, image_request, material
+                            )
+                            replacement_successful = True
                         
                         if replacement_successful:
-                            print(f"✅ [MaterialContentGeneratorAgent] Generated and integrated image {i+1}")
+                            successful_integrations += 1
+                            print(f"✅ [MaterialContentGeneratorAgent] Successfully integrated image {i+1}")
                         else:
-                            print(f"❌ [MaterialContentGeneratorAgent] Image replacement failed for image {i+1}")
+                            failed_integrations += 1
+                            print(f"❌ [MaterialContentGeneratorAgent] Failed to integrate image {i+1} - placeholder not found")
                     else:
+                        failed_integrations += 1
                         print(f"❌ [MaterialContentGeneratorAgent] Failed to generate image {i+1}: {image_result.get('error')}")
-                        # Remove the placeholder if image generation failed
-                        if image_request.get('format') == 'new':
-                            placeholder = f"#image {{{image_request['description']}}}"
-                        else:
-                            placeholder = f"[IMAGE_REQUEST: {image_request['description']}]"
-                        enhanced_content = enhanced_content.replace(placeholder, f"*[Image: {image_request['description']}]*")
+                        
+                        # Handle failed generation gracefully
+                        await self._handle_failed_image_generation(enhanced_content, image_request)
                 
                 except Exception as img_error:
-                    print(f"❌ [MaterialContentGeneratorAgent] Error generating image {i+1}: {img_error}")
-                    # Remove the placeholder on error
-                    if image_request.get('format') == 'new':
-                        placeholder = f"#image {{{image_request['description']}}}"
-                    else:
-                        placeholder = f"[IMAGE_REQUEST: {image_request['description']}]"
-                    enhanced_content = enhanced_content.replace(placeholder, f"*[Image: {image_request['description']}]*")
+                    failed_integrations += 1
+                    print(f"❌ [MaterialContentGeneratorAgent] Error processing image {i+1}: {img_error}")
+                    await self._handle_failed_image_generation(enhanced_content, image_request)
             
-            print(f"🔍 [MaterialContentGeneratorAgent] Final enhanced content length: {len(enhanced_content)}")
-            print(f"🔍 [MaterialContentGeneratorAgent] Image integration complete")
+            # Report integration results
+            total_requests = len(image_requests)
+            print(f"📊 [MaterialContentGeneratorAgent] Image integration complete:")
+            print(f"   Total requests: {total_requests}")
+            print(f"   Successful: {successful_integrations}")
+            print(f"   Failed: {failed_integrations}")
+            print(f"   Success rate: {(successful_integrations/total_requests*100):.1f}%" if total_requests > 0 else "   No requests processed")
+            print(f"   Final content length: {len(enhanced_content)} characters")
+            
             return enhanced_content
             
         except Exception as e:
-            print(f"❌ [MaterialContentGeneratorAgent] Error integrating images: {e}")
+            print(f"❌ [MaterialContentGeneratorAgent] Error in enhanced image integration: {e}")
+            return content
+    
+    def _determine_image_style(self, image_request: Dict[str, Any], material: Dict[str, Any]) -> str:
+        """Determine the best image style based on request type and content pattern"""
+        try:
+            request_type = image_request.get('type', 'explicit')
+            pattern = image_request.get('pattern', 'general')
+            material_type = material.get('material_type', 'slide')
+            
+            # Style mapping based on content patterns
+            pattern_styles = {
+                'process': 'professional_educational',  # Clean diagrams for processes
+                'comparison': 'modern',  # Modern infographics for comparisons
+                'architecture': 'tech_focused',  # Technical diagrams for systems
+                'data': 'colorful',  # Engaging visuals for data
+                'concept': 'minimalist',  # Clean illustrations for concepts
+                'timeline': 'modern',  # Modern timeline visuals
+                'benefits': 'colorful',  # Engaging benefit illustrations
+                'technology': 'tech_focused',  # Technical style for tech content
+                'summary': 'professional_educational'  # Professional summary visuals
+            }
+            
+            # Get style based on pattern, fallback to professional_educational
+            style = pattern_styles.get(pattern, 'professional_educational')
+            
+            # Override for assessments - always use minimalist
+            if material_type == 'assessment':
+                style = 'minimalist'
+            
+            print(f"🎨 [MaterialContentGeneratorAgent] Selected style '{style}' for pattern '{pattern}' and type '{request_type}'")
+            return style
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error determining image style: {e}")
+            return 'professional_educational'
+    
+    def _create_enhanced_image_markdown(self, image_request: Dict[str, Any], image_url: str, image_result: Dict[str, Any]) -> str:
+        """Create enhanced markdown for image integration with better formatting"""
+        try:
+            description = image_request['description']
+            request_type = image_request.get('type', 'explicit')
+            pattern = image_request.get('pattern', 'general')
+            
+            # Create alt text (shorter version of description)
+            alt_text = description[:100] + "..." if len(description) > 100 else description
+            
+            # Base image markdown
+            image_markdown = f"![{alt_text}]({image_url})"
+            
+            # Add caption based on request type
+            if request_type == 'intelligent_suggestion':
+                # For auto-suggestions, add a more descriptive caption
+                caption = f"*Figure: {description}*"
+            else:
+                # For explicit requests, use the description as caption
+                caption = f"*{description}*"
+            
+            # Add spacing and formatting
+            enhanced_markdown = f"\n\n{image_markdown}\n{caption}\n\n"
+            
+            # Add divider for better visual separation (optional)
+            if pattern in ['process', 'architecture', 'timeline']:
+                enhanced_markdown += "---\n\n"
+            
+            return enhanced_markdown
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error creating enhanced image markdown: {e}")
+            # Fallback to simple markdown
+            return f"\n\n![{image_request['description']}]({image_url})\n*{image_request['description']}*\n\n"
+    
+    async def _insert_auto_suggested_image(self, content: str, image_markdown: str, image_request: Dict[str, Any], material: Dict[str, Any]) -> str:
+        """Insert auto-suggested images at strategic locations in content"""
+        try:
+            pattern = image_request.get('pattern', 'general')
+            confidence = image_request.get('confidence', 0.5)
+            
+            lines = content.split('\n')
+            
+            # Strategy 1: Insert after relevant section headers
+            if pattern in ['process', 'architecture', 'technology']:
+                # Look for headers that match the pattern
+                pattern_keywords = {
+                    'process': ['process', 'workflow', 'steps', 'procedure', 'methodology'],
+                    'architecture': ['architecture', 'system', 'structure', 'components', 'framework'],
+                    'technology': ['technology', 'tools', 'software', 'platform', 'solution']
+                }
+                
+                keywords = pattern_keywords.get(pattern, [])
+                for i, line in enumerate(lines):
+                    if line.startswith('#') and any(keyword in line.lower() for keyword in keywords):
+                        # Insert after this header and any immediate content
+                        insert_index = i + 1
+                        while insert_index < len(lines) and lines[insert_index].strip() and not lines[insert_index].startswith('#'):
+                            insert_index += 1
+                        lines.insert(insert_index, image_markdown.strip())
+                        return '\n'.join(lines)
+            
+            # Strategy 2: Insert in the middle of content for summary/concept images
+            if pattern in ['summary', 'concept', 'benefits']:
+                middle_index = len(lines) // 2
+                # Find a good break point near the middle
+                for i in range(middle_index - 5, min(middle_index + 5, len(lines))):
+                    if i >= 0 and i < len(lines) and (not lines[i].strip() or lines[i].startswith('#')):
+                        lines.insert(i, image_markdown.strip())
+                        return '\n'.join(lines)
+            
+            # Strategy 3: Insert after introduction (for comparison, data images)
+            if pattern in ['comparison', 'data', 'timeline']:
+                # Look for end of introduction section
+                for i, line in enumerate(lines):
+                    if line.startswith('##') and i > 5:  # After some intro content
+                        lines.insert(i, image_markdown.strip())
+                        return '\n'.join(lines)
+            
+            # Fallback: Insert at 1/3 of the content
+            fallback_index = len(lines) // 3
+            lines.insert(fallback_index, image_markdown.strip())
+            
+            print(f"📍 [MaterialContentGeneratorAgent] Inserted auto-suggested image using fallback strategy at line {fallback_index}")
+            return '\n'.join(lines)
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error inserting auto-suggested image: {e}")
+            # Fallback: append at end
+            return content + image_markdown
+    
+    async def _handle_failed_image_generation(self, content: str, image_request: Dict[str, Any]) -> str:
+        """Handle failed image generation gracefully"""
+        try:
+            request_format = image_request.get('format', 'unknown')
+            description = image_request['description']
+            
+            # Only remove placeholders for explicit requests, not auto-suggestions
+            if request_format in ['new', 'legacy']:
+                if request_format == 'new':
+                    placeholder = f"#image {{{description}}}"
+                else:
+                    placeholder = f"[IMAGE_REQUEST: {description}]"
+                
+                # Replace with a note about the missing image
+                replacement = f"*[Image placeholder: {description}]*"
+                content = content.replace(placeholder, replacement)
+            
+            return content
+            
+        except Exception as e:
+            print(f"❌ [MaterialContentGeneratorAgent] Error handling failed image generation: {e}")
             return content
     
     async def _store_content_in_r2(self, material: Dict[str, Any], content: str, course: Dict[str, Any]) -> Dict[str, Any]:
@@ -1616,7 +1932,7 @@ Example structure:
                     return {"success": False, "error": "Material not found"}
             
             if approved:
-                # Mark as approved and get next material
+                # Mark as approved
                 await db.content_materials.update_one(
                     {"_id": ObjectId(material_id)},
                     {
@@ -1631,18 +1947,61 @@ Example structure:
                 next_material = await self._get_next_material_to_process(str(material["course_id"]))
                 
                 if next_material:
-                    return {
-                        "success": True,
-                        "approved": True,
-                        "next_material": {
-                            "id": str(next_material["_id"]),
-                            "title": next_material["title"],
-                            "module_number": next_material["module_number"],
-                            "chapter_number": next_material["chapter_number"],
-                            "material_type": next_material["material_type"]
-                        },
-                        "continue_generation": True
-                    }
+                    # AUTO-GENERATE CONTENT FOR NEXT MATERIAL
+                    print(f"🚀 [MaterialContentGeneratorAgent] Auto-generating content for next material: {next_material['title']}")
+                    print(f"   Type: {next_material['material_type']}")
+                    print(f"   Location: Module {next_material['module_number']}, Chapter {next_material['chapter_number']}, Slide {next_material.get('slide_number', 1)}")
+                    
+                    # Send a pre-generation event to ensure frontend knows what's coming next
+                    file_path = self._get_material_file_path(next_material)
+                    await self._send_streaming_event({
+                        "type": "next_material_starting",
+                        "material_id": str(next_material["_id"]),
+                        "title": next_material["title"],
+                        "material_type": next_material["material_type"],
+                        "module_number": next_material["module_number"],
+                        "chapter_number": next_material["chapter_number"],
+                        "slide_number": next_material.get("slide_number", 1),
+                        "file_path": file_path,
+                        "message": f"Moving to next material: {next_material['title']}"
+                    })
+                    
+                    # Generate content for the next material
+                    generation_result = await self._generate_slide_content(str(next_material["_id"]))
+                    
+                    if generation_result["success"]:
+                        print(f"✅ [MaterialContentGeneratorAgent] Successfully generated content for next material")
+                        return {
+                            "success": True,
+                            "approved": True,
+                            "next_material": {
+                                "id": str(next_material["_id"]),
+                                "title": next_material["title"],
+                                "module_number": next_material["module_number"],
+                                "chapter_number": next_material["chapter_number"],
+                                "material_type": next_material["material_type"],
+                                "slide_number": next_material.get("slide_number", 1)
+                            },
+                            "continue_generation": True,
+                            "auto_generated": True,  # Flag to indicate auto-generation
+                            "generated_material": generation_result.get("material", {})
+                        }
+                    else:
+                        # If generation failed, still return success for approval but with error info
+                        return {
+                            "success": True,
+                            "approved": True,
+                            "next_material": {
+                                "id": str(next_material["_id"]),
+                                "title": next_material["title"],
+                                "module_number": next_material["module_number"],
+                                "chapter_number": next_material["chapter_number"],
+                                "material_type": next_material["material_type"]
+                            },
+                            "continue_generation": True,
+                            "generation_failed": True,
+                            "generation_error": generation_result.get("error", "Unknown error")
+                        }
                 else:
                     # All materials completed
                     await self._mark_course_content_complete(str(material["course_id"]))
@@ -1909,143 +2268,195 @@ Please provide the complete modified content that addresses the feedback while m
             return False
     
     async def _generate_response_with_context(self, base_response: Optional[str], function_results: Dict[str, Any]) -> str:
-        """Generate contextual response based on function results"""
+        """Generate contextual response based on function results - FIXED VERSION"""
+        print(f"🔍 [MaterialContentGeneratorAgent] _generate_response_with_context called")
+        print(f"   base_response: '{base_response}'")
+        print(f"   function_results keys: {list(function_results.keys()) if function_results else 'None'}")
+        
         if not function_results:
-            return base_response or "I'm ready to help you generate detailed study material content for your course. What would you like to work on?"
+            print(f"🔍 [MaterialContentGeneratorAgent] No function results, returning base response")
+            return base_response or "Ready to generate content for your course."
         
         # Handle content generation start
         if "content_generation_started" in function_results:
             result = function_results["content_generation_started"]
+            print(f"🔍 [MaterialContentGeneratorAgent] Processing content_generation_started: {result}")
             if result.get("success"):
                 if result.get("completed"):
-                    return "✅ **All Course Materials Completed!**\n\nAll slides and assessments have been processed and have detailed study material content. Your course is ready for students!"
+                    return "✅ All Done - you can publish this course now"
+                elif result.get("first_slide_generated") and result.get("generated_material"):
+                    # Show the first generated material
+                    material = result.get("generated_material", {})
+                    return f"""✅ Content Generated Successfully!
+
+📄 Material: {material.get('title', 'Unknown')}
+📊 Content Length: {material.get('content_length', 0):,} characters
+🖼️ Images: {'Yes' if material.get('has_images') else 'No'}
+
+Preview is ready! Please review the generated content and choose:
+• **Approve & Continue** to move to the next slide
+• **Request Modifications** if you'd like changes"""
                 else:
-                    next_material = result.get("next_material", {})
-                    return f"🚀 **Content Generation Started!**\n\n📝 **Next Material to Process:**\n\n**Title:** {next_material.get('title', 'Unknown')}\n**Type:** {next_material.get('material_type', 'slide')}\n**Location:** Module {next_material.get('module_number', '?')}, Chapter {next_material.get('chapter_number', '?')}\n\nGenerating detailed study material content..."
+                    # Simply return that generation has started - no verbose details
+                    return "Starting content generation..."
             else:
-                return f"❌ **Content Generation Failed:** {result.get('error', 'Unknown error')}"
+                return f"❌ Failed: {result.get('error', 'Unknown error')}"
         
-        # Handle slide content generation
+        # Handle slide content generation - SIMPLIFIED
         if "slide_content_generated" in function_results:
             result = function_results["slide_content_generated"]
+            print(f"🔍 [MaterialContentGeneratorAgent] Processing slide_content_generated: {result}")
             if result.get("success"):
                 material = result.get("material", {})
-                content_length = material.get("content_length", 0)
-                has_images = material.get("has_images", False)
-                material_type = material.get("material_type", "slide")
-                
-                # Different messages for assessments vs slides - CRITICAL FIX for assessment completion messages
-                if material_type == "assessment":
-                    return f"✅ **Assessment Generated Successfully!**\n\n📄 **Assessment:** {material.get('title', 'Unknown')}\n📊 **Question Type:** Dynamic Assessment\n🎯 **Format:** Interactive Question\n\n**The assessment is ready for review!** You can preview the generated question in the files panel.\n\nWould you like to **approve & continue** to the next slide, or **request modifications** to this assessment?"
-                else:
-                    return f"✅ **Content Generated Successfully!**\n\n📄 **Material:** {material.get('title', 'Unknown')}\n📊 **Content Length:** {content_length:,} characters\n🖼️ **Images:** {'Yes' if has_images else 'No'}\n\n**Preview is ready!** Please review the generated content and choose:\n- **Approve & Continue** to move to the next slide\n- **Request Modifications** if you'd like changes"
+                # Show the standard approval message
+                return f"""✅ Content Generated Successfully!
+
+📄 Material: {material.get('title', 'Unknown')}
+📊 Content Length: {material.get('content_length', 0):,} characters
+🖼️ Images: {'Yes' if material.get('has_images') else 'No'}
+
+Preview is ready! Please review the generated content and choose:
+• **Approve & Continue** to move to the next slide
+• **Request Modifications** if you'd like changes"""
             else:
-                return f"❌ **Content Generation Failed:** {result.get('error', 'Unknown error')}"
+                return f"❌ Failed: {result.get('error', 'Unknown error')}"
         
-        # Handle content approval
+        # Handle content approval - CRITICAL FIX FOR SEAMLESS FLOW
         if "content_approved" in function_results:
             result = function_results["content_approved"]
+            print(f"🔍 [MaterialContentGeneratorAgent] Processing content_approved: {result}")
+            print(f"   - success: {result.get('success')}")
+            print(f"   - all_completed: {result.get('all_completed')}")
+            print(f"   - auto_generated: {result.get('auto_generated')}")
+            print(f"   - continue_generation: {result.get('continue_generation')}")
+            print(f"   - generated_material exists: {bool(result.get('generated_material'))}")
+            print(f"   - generation_failed: {result.get('generation_failed')}")
+            
             if result.get("success"):
                 if result.get("all_completed"):
-                    return "🎉 **All Course Materials Completed!**\n\nCongratulations! All slides and assessments now have comprehensive study material content. Your course is ready for students to begin their learning journey!"
-                elif result.get("continue_generation"):
+                    print(f"🔍 [MaterialContentGeneratorAgent] All completed - returning final message")
+                    return "✅ All Done - you can publish this course now"
+                elif result.get("auto_generated") and result.get("generated_material"):
+                    # FIXED: When auto-generating next, show the standard approval message
+                    print(f"🔍 [MaterialContentGeneratorAgent] Auto-generated with material - showing approval message")
+                    generated_material = result.get("generated_material", {})
+                    return f"""✅ Content Generated Successfully!
+
+📄 Material: {generated_material.get('title', 'Unknown')}
+📊 Content Length: {generated_material.get('content_length', 0):,} characters
+🖼️ Images: {'Yes' if generated_material.get('has_images') else 'No'}
+
+Preview is ready! Please review the generated content and choose:
+• **Approve & Continue** to move to the next slide
+• **Request Modifications** if you'd like changes"""
+                elif result.get("generation_failed"):
+                    # Handle generation failure case
+                    print(f"🔍 [MaterialContentGeneratorAgent] Generation failed - showing error")
                     next_material = result.get("next_material", {})
-                    return f"✅ **Content Approved!**\n\n🔄 **Moving to Next Material:**\n- **Title:** {next_material.get('title', 'Unknown')}\n- **Type:** {next_material.get('material_type', 'Unknown')}\n- **Location:** Module {next_material.get('module_number', '?')}, Chapter {next_material.get('chapter_number', '?')}\n\n*Generating content for the next slide...*"
+                    return f"❌ Failed to generate content for {next_material.get('title', 'next material')}: {result.get('generation_error', 'Unknown error')}"
+                elif result.get("continue_generation"):
+                    # CRITICAL FIX: Handle continue_generation cases properly
+                    if result.get("generated_material"):
+                        # We have generated material - show the standard approval message
+                        print(f"🔍 [MaterialContentGeneratorAgent] Continue generation with material - showing approval message")
+                        generated_material = result.get("generated_material", {})
+                        return f"""✅ Content Generated Successfully!
+
+📄 Material: {generated_material.get('title', 'Unknown')}
+📊 Content Length: {generated_material.get('content_length', 0):,} characters
+🖼️ Images: {'Yes' if generated_material.get('has_images') else 'No'}
+
+Preview is ready! Please review the generated content and choose:
+• **Approve & Continue** to move to the next slide
+• **Request Modifications** if you'd like changes"""
+                    else:
+                        # No generated material - either generation failed or still in progress
+                        print(f"🔍 [MaterialContentGeneratorAgent] Continue generation without material")
+                        next_material = result.get("next_material", {})
+                        if result.get("generation_failed"):
+                            return f"❌ Failed to auto-generate content for {next_material.get('title', 'next material')}. Please try again."
+                        else:
+                            # Generation is in progress or will start
+                            return f"🚀 Generating content for {next_material.get('title', 'next material')}..."
                 else:
-                    return "✅ **Content Approved!** Ready for the next step in your course creation process."
+                    # CRITICAL FIX: This is the fallback case - ensure we don't get stuck here
+                    print(f"🔍 [MaterialContentGeneratorAgent] Approval success but no continue_generation flag")
+                    print(f"   This might indicate all materials are complete or there's an issue")
+                    return "✅ Content approved successfully."
             else:
-                return f"❌ **Approval Failed:** {result.get('error', 'Unknown error')}"
+                return f"❌ Failed: {result.get('error', 'Unknown error')}"
         
-        # Handle content modification
+        # Handle content modification - SIMPLIFIED
         if "content_modified" in function_results:
             result = function_results["content_modified"]
             if result.get("success"):
                 material = result.get("material", {})
-                return f"🔄 **Content Modified Successfully!**\n\n📄 **Material:** {material.get('title', 'Unknown')}\n📊 **Updated Length:** {material.get('content_length', 0):,} characters\n\n**Updated preview is ready!** Please review the modifications and approve or request further changes."
+                return f"Modified content for **{material.get('title', 'Unknown')}**"
             else:
-                return f"❌ **Content Modification Failed:** {result.get('error', 'Unknown error')}"
+                return f"❌ Failed: {result.get('error', 'Unknown error')}"
         
-        # Handle specific slide generation
+        # Handle specific slide generation - SIMPLIFIED
         if "specific_slide_generated" in function_results:
             result = function_results["specific_slide_generated"]
             if result.get("success"):
                 material = result.get("material", {})
-                targeted_slide = result.get("targeted_slide", {})
-                content_length = material.get("content_length", 0)
-                has_images = material.get("has_images", False)
-                
-                return f"🎯 **Specific Slide Content Generated!**\n\n📍 **Target:** {targeted_slide.get('description', 'Unknown')}\n✅ **Matched:** {targeted_slide.get('matched_title', 'Unknown')}\n📍 **Location:** {targeted_slide.get('location', 'Unknown')}\n📊 **Content Length:** {content_length:,} characters\n🖼️ **Images:** {'Yes' if has_images else 'No'}\n\n**Preview is ready!** The content has been generated for your specific slide request."
+                return f"Generated content for **{material.get('title', 'Unknown')}**"
             else:
-                return f"❌ **Specific Slide Generation Failed:** {result.get('error', 'Unknown error')}"
+                return f"❌ Failed: {result.get('error', 'Unknown error')}"
         
-        # Handle specific slide editing
+        # Handle specific slide editing - SIMPLIFIED
         if "specific_slide_edited" in function_results:
             result = function_results["specific_slide_edited"]
             if result.get("success"):
                 material = result.get("material", {})
-                targeted_slide = result.get("targeted_slide", {})
-                content_length = material.get("content_length", 0)
-                
-                return f"✏️ **Specific Slide Content Edited!**\n\n📍 **Target:** {targeted_slide.get('description', 'Unknown')}\n✅ **Matched:** {targeted_slide.get('matched_title', 'Unknown')}\n📍 **Location:** {targeted_slide.get('location', 'Unknown')}\n📊 **Updated Length:** {content_length:,} characters\n\n**Updated preview is ready!** Your specific slide modifications have been applied."
+                return f"Edited content for **{material.get('title', 'Unknown')}**"
             else:
-                return f"❌ **Specific Slide Edit Failed:** {result.get('error', 'Unknown error')}"
+                return f"❌ Failed: {result.get('error', 'Unknown error')}"
         
-        # Handle slide search results
+        # Handle slide search results - KEEP DETAILED (useful for user)
         if "slides_found" in function_results:
             result = function_results["slides_found"]
             if result.get("success"):
                 total_found = result.get("total_found", 0)
                 materials = result.get("materials", [])
-                search_description = result.get("search_description", "Unknown")
                 
                 if total_found == 0:
-                    return f"🔍 **Search Results**\n\nNo materials found matching: '{search_description}'\n\nTry using different keywords or check the module/chapter numbers."
+                    return "No materials found"
                 
-                response = f"🔍 **Search Results for:** '{search_description}'\n\n**Found {total_found} matching materials:**\n\n"
+                response = f"Found {total_found} materials:\n"
+                for i, material in enumerate(materials[:3], 1):
+                    response += f"{i}. {material.get('title', 'Unknown')}\n"
                 
-                for i, material in enumerate(materials[:5], 1):  # Show top 5 results
-                    relevance = material.get("relevance_score", 0) * 100
-                    status_emoji = "✅" if material.get("content_status") == "completed" else "⏳"
-                    response += f"{i}. {status_emoji} **{material.get('title', 'Unknown')}**\n"
-                    response += f"   📍 Module {material.get('module_number', '?')}, Chapter {material.get('chapter_number', '?')}\n"
-                    response += f"   📊 Relevance: {relevance:.0f}% - {material.get('match_reason', 'No reason')}\n\n"
-                
-                if total_found > 5:
-                    response += f"*...and {total_found - 5} more results*\n\n"
-                
-                response += "Use specific slide descriptions like 'slide 1 of chapter 1.1' to generate or edit content."
+                if total_found > 3:
+                    response += f"...and {total_found - 3} more"
                 return response
             else:
-                return f"❌ **Search Failed:** {result.get('error', 'Unknown error')}"
+                return f"❌ Failed: {result.get('error', 'Unknown error')}"
         
-        # Handle targeted slide content editing
+        # Handle targeted edits - SIMPLIFIED
         if "slide_content_edited_targeted" in function_results:
             result = function_results["slide_content_edited_targeted"]
             if result.get("success"):
                 if result.get("requires_approval"):
                     material_title = result.get("material_title", "Unknown")
-                    changes_summary = result.get("changes_summary", "Content modified")
-                    edit_preview = result.get("edit_preview", {})
-                    
-                    return f"🎯 **Targeted Edit Preview Ready!**\n\n📄 **Material:** {material_title}\n🔧 **Edit Type:** {edit_preview.get('change_type', 'modification')}\n📝 **Changes:** {changes_summary}\n\n**Preview the changes and choose:**\n- **✅ Approve & Apply** to save the changes\n- **❌ Cancel** to discard the changes\n\nThe diff preview shows exactly what will be modified."
+                    return f"Preview changes for **{material_title}**"
                 else:
-                    return f"🎯 **Targeted Edit Applied!** Changes have been made to the slide content."
+                    return "✅ Changes applied"
             else:
-                return f"❌ **Targeted Edit Failed:** {result.get('error', 'Unknown error')}"
+                return f"❌ Failed: {result.get('error', 'Unknown error')}"
         
-        # Handle targeted edit application
+        # Handle targeted edit application - SIMPLIFIED
         if "targeted_edit_applied" in function_results:
             result = function_results["targeted_edit_applied"]
             if result.get("success"):
-                material_title = result.get("material_title", "Unknown")
                 if result.get("applied"):
-                    return f"✅ **Targeted Edit Applied Successfully!**\n\n📄 **Material:** {material_title}\n\nYour targeted changes have been saved and the content has been updated. The modified content is now available for preview."
+                    return "✅ Changes saved"
                 else:
-                    return f"❌ **Targeted Edit Cancelled**\n\n📄 **Material:** {material_title}\n\nThe targeted edit was not applied. The original content remains unchanged."
+                    return "Changes cancelled"
             else:
-                return f"❌ **Targeted Edit Application Failed:** {result.get('error', 'Unknown error')}"
+                return f"❌ Failed: {result.get('error', 'Unknown error')}"
         
-        return base_response or "Content generation operation completed. What would you like to work on next?"
+        return base_response or "Operation completed"
     
     async def get_content_generation_status(self, course_id: str) -> Dict[str, Any]:
         """Get the current status of content generation for a course"""

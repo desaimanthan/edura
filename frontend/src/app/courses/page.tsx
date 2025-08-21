@@ -253,32 +253,18 @@ export default function Courses() {
     <RouteGuard requiresApproval={true} allowedRoles={["Teacher", "Student", "Administrator"]}>
       <DashboardLayout title="Courses" icon={BookOpen}>
         <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Welcome Card */}
-        <Card className="col-span-full">
-          <CardHeader>
-            <CardTitle className="text-2xl flex items-center">
-              <BookOpen className="h-6 w-6 mr-2" />
-              Course Management
-            </CardTitle>
-            <CardDescription>
-              Manage your courses, view enrollments, and track progress.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4">
-              <Link href="/courses/create">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create New Course
-                </Button>
-              </Link>
-              <Button variant="outline">
-                Import Courses
+          {/* Page Header */}
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold">Course Management</h1>
+            <Link href="/courses/create">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Create New Course
               </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </Link>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
         {/* Course Statistics */}
         <Card>

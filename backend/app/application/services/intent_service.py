@@ -85,7 +85,7 @@ ANALYSIS GUIDELINES:
    - If no research exists → JUMP_TO_STEP to initial_research with initial_research agent
    - If course design exists → JUMP_TO_STEP to content_creation with course_structure agent
 
-5. **Content Creation Requests**: Keywords like "content creation", "start content creation", "create content", "material creation" → JUMP_TO_STEP to content_creation with course_structure agent
+5. **Content Creation Requests**: Keywords like "content creation", "start content creation", "create content", "material creation", "material generation", "course material generation" → JUMP_TO_STEP to content_creation with material_content_generator agent
 
 6. **Structure Generation Requests**: Keywords like "content structure", "generate structure", "create structure" (but NOT when in approval context) → JUMP_TO_STEP to content_structure_generation with course_structure agent
 
@@ -246,6 +246,25 @@ Respond with JSON only (no markdown, no extra text):
                 'target_agent': 'course_structure',  # ✅ Fixed: Route to course_structure first to process approval, then auto-trigger content generation
                 'confidence': 'high',
                 'reasoning': 'Validation override - detected explicit content creation approval message, routing to course_structure to process approval and start content creation'
+            })
+            return result
+        
+        # CRITICAL FIX: Handle material generation requests explicitly
+        if any(phrase in message_lower for phrase in [
+            'start course material generation',
+            'start material generation',
+            'generate course materials',
+            'begin material generation',
+            'start generating materials'
+        ]):
+            result.update({
+                'category': 'workflow_request',
+                'workflow_action': 'JUMP_TO_STEP',
+                'target_workflow': 'course_creation',
+                'target_step': 'content_creation',
+                'target_agent': 'material_content_generator',
+                'confidence': 'high',
+                'reasoning': 'Validation override - detected material generation request, routing to material_content_generator'
             })
             return result
         
