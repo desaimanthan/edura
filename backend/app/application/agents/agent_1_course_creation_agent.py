@@ -1,4 +1,5 @@
 import json
+import re
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from bson import ObjectId
@@ -21,6 +22,93 @@ class CourseCreationAgent:
         self.context = context_service
         self.image_generation_agent = image_generation_agent
         self.model = "gpt-5-nano-2025-08-07"
+    
+    def _detect_course_name_intent(self, user_message: str, intent_info: Optional[Dict[str, Any]] = None) -> bool:
+        """Detect if the user message contains a course name that should trigger course creation"""
+        
+        # Check intent service results first
+        if intent_info:
+            if (intent_info.get('category') == 'workflow_request' and 
+                intent_info.get('target_step') == 'course_naming'):
+                print(f"🎯 [CourseCreationAgent] Intent service indicates course naming: {intent_info.get('reasoning', '')}")
+                return True
+        
+        message_lower = user_message.lower().strip()
+        
+        # Early exclusion for obvious non-course names
+        if (user_message.strip().endswith('?') or  # Questions
+            any(word.lower() in ['what', 'how', 'can', 'could', 'would', 'should', 'hello', 'hi', 'thanks', 'thank', 'help', 'explain'] 
+                for word in user_message.split()[:2])):  # Starting with question/greeting words
+            print(f"🔍 [CourseCreationAgent] Excluded as question/greeting: '{user_message}'")
+            return False
+        
+        # Pattern-based detection for course names
+        course_name_patterns = [
+            # Educational phrases
+            r'\b(introduction to|intro to|basics of|fundamentals of|advanced|beginner|intermediate)\b',
+            # Subject areas
+            r'\b(python|javascript|java|react|machine learning|ai|data science|web development|programming|coding|design|ux|ui)\b',
+            # Course-like structures
+            r'\b\w+\s+(101|basics|fundamentals|course|training|tutorial|guide|bootcamp)\b',
+        ]
+        
+        # Check if message matches course name patterns
+        for pattern in course_name_patterns:
+            if re.search(pattern, message_lower, re.IGNORECASE):
+                print(f"🎯 [CourseCreationAgent] Course name pattern detected: '{pattern}' in '{user_message}'")
+                return True
+        
+        # Check for educational keywords
+        educational_keywords = [
+            'course', 'training', 'tutorial', 'bootcamp', 'workshop', 'class',
+            'learning', 'education', 'study', 'lesson', 'curriculum'
+        ]
+        
+        # If message contains educational keywords and is not a question
+        if (any(keyword in message_lower for keyword in educational_keywords) and 
+            not user_message.strip().endswith('?') and 
+            len(user_message.split()) <= 8):  # Short phrases are more likely to be course names
+            print(f"🎯 [CourseCreationAgent] Educational keyword detected in short phrase: '{user_message}'")
+            return True
+        
+        # Check if it's a title-case phrase (likely a course name)
+        # But exclude questions and common conversational phrases
+        words = user_message.split()
+        if (len(words) >= 2 and len(words) <= 6 and 
+            not user_message.strip().endswith('?') and  # Not a question
+            not any(word.lower() in ['what', 'how', 'can', 'could', 'would', 'should', 'hello', 'hi', 'thanks', 'thank'] 
+                   for word in words[:2]) and  # Not starting with question/greeting words
+            all(word[0].isupper() or word.lower() in ['in', 'of', 'to', 'for', 'and', 'the', 'a', 'an'] 
+                for word in words if word)):
+            print(f"🎯 [CourseCreationAgent] Title-case phrase detected: '{user_message}'")
+            return True
+        
+        print(f"🔍 [CourseCreationAgent] No course name pattern detected in: '{user_message}'")
+        return False
+    
+    def _should_force_function_call(self, user_message: str, intent_info: Optional[Dict[str, Any]] = None) -> bool:
+        """Determine if we should force function calling instead of allowing auto choice"""
+        
+        # Force function calling if we detect a course name
+        if self._detect_course_name_intent(user_message, intent_info):
+            print(f"🚀 [CourseCreationAgent] Forcing function call for detected course name: '{user_message}'")
+            return True
+        
+        # Force function calling for clear update requests
+        update_patterns = [
+            r'\b(change|update|rename|modify|set)\b.*\b(name|title|description)\b',
+            r'\b(name|title)\b.*\bto\b',
+            r'\bcall it\b',
+            r'\brename.*to\b'
+        ]
+        
+        message_lower = user_message.lower()
+        for pattern in update_patterns:
+            if re.search(pattern, message_lower):
+                print(f"🚀 [CourseCreationAgent] Forcing function call for update request: '{user_message}'")
+                return True
+        
+        return False
     
     def get_function_definitions(self) -> List[Dict[str, Any]]:
         """Define functions that this agent can call"""
@@ -117,26 +205,28 @@ class CourseCreationAgent:
         if needs_course_creation:
             return """You are a Course Creation Copilot. Your PRIMARY GOAL is to create courses from user input.
 
-INTELLIGENT COURSE NAME DETECTION:
-- If the user provides ANY text that could be a course name, immediately call create_course
-- Examples: "Introduction to RAG", "Python Basics", "Machine Learning 101", "Web Development"
-- Don't ask for confirmation - act immediately when you detect a course name
-- Generate a compelling description based on the course name
+CRITICAL INSTRUCTION: When you detect a course name, you MUST call the create_course function immediately. Do NOT provide conversational responses without calling the function first.
 
-BEHAVIOR RULES:
-1. Single words or phrases that sound educational → create_course immediately
-2. Questions about capabilities → provide helpful guidance
-3. Unclear input → ask for clarification
+COURSE NAME DETECTION RULES:
+✅ ALWAYS call create_course for these patterns:
+- Educational titles: "Introduction to X", "X Basics", "Advanced X", "X 101"
+- Subject areas: "Python", "JavaScript", "Machine Learning", "UX Design", "Web Development"
+- Course-like phrases: "X Training", "X Tutorial", "X Bootcamp", "X Course"
+- Title-case educational topics: "UX Design in AI Native World", "Data Science Fundamentals"
 
-Available functions:
-- create_course: Create new courses with name and description (USE THIS IMMEDIATELY when you detect a course name)
+❌ NEVER ask "What would you like to work on?" when you detect a course name
 
-Examples of correct behavior:
-- User: "Introduction to RAG" → Call create_course with name="Introduction to RAG" and generate description
-- User: "Python Programming" → Call create_course with name="Python Programming" and generate description
-- User: "What can you do?" → Explain capabilities without calling functions
+MANDATORY BEHAVIOR:
+1. Course name detected → IMMEDIATELY call create_course function
+2. Generate compelling description automatically
+3. No confirmation needed - act decisively
 
-Be proactive and intelligent - don't wait for explicit instructions when the intent is clear."""
+EXAMPLES OF CORRECT BEHAVIOR:
+- User: "UX Design in AI Native World" → Call create_course(name="UX Design in AI Native World", description="Learn modern UX design principles...")
+- User: "Python Programming" → Call create_course(name="Python Programming", description="Master Python programming...")
+- User: "Machine Learning 101" → Call create_course(name="Machine Learning 101", description="Introduction to machine learning...")
+
+ONLY ask questions if the input is genuinely unclear or is asking about capabilities."""
         
         return f"""You are a Course Creation Assistant for course "{course['name']}" (ID: {course_id}).
 
@@ -172,6 +262,10 @@ Be conversational, helpful, and act on clear requests immediately."""
         system_prompt = self.get_system_prompt(context)
         messages = self.messages.build_openai_messages(context, user_message, system_prompt)
         
+        # Determine tool choice strategy
+        force_function_call = self._should_force_function_call(user_message, intent_info)
+        tool_choice = "required" if force_function_call else "auto"
+        
         # Get AI response with function calling
         try:
             print(f"\n{'='*60}")
@@ -180,6 +274,7 @@ Be conversational, helpful, and act on clear requests immediately."""
             print(f"   📝 User Message: \033[92m'{user_message}'\033[0m")
             print(f"   📝 System Prompt Preview: \033[90m{system_prompt[:150]}...\033[0m")
             print(f"   🔧 Functions available: \033[93m{len(self.get_function_definitions())}\033[0m")
+            print(f"   🎯 Tool choice: \033[93m{tool_choice}\033[0m {'(FORCED)' if force_function_call else '(AUTO)'}")
             print(f"{'='*60}")
             
             client = await self.openai.get_client()
@@ -187,7 +282,7 @@ Be conversational, helpful, and act on clear requests immediately."""
                 model=self.model,
                 messages=messages,
                 tools=[{"type": "function", "function": func} for func in self.get_function_definitions()],
-                tool_choice="auto",
+                tool_choice=tool_choice,
                 max_completion_tokens=1000
             )
             
@@ -199,10 +294,12 @@ Be conversational, helpful, and act on clear requests immediately."""
             # Handle tool calls
             function_results = {}
             if message.tool_calls:
+                print(f"🔧 [CourseCreationAgent] Processing {len(message.tool_calls)} tool calls")
                 for tool_call in message.tool_calls:
                     if tool_call.type == "function":
                         function_name = tool_call.function.name
                         function_args = json.loads(tool_call.function.arguments)
+                        print(f"   🛠️ Calling function: {function_name} with args: {function_args}")
                         
                         if function_name == "create_course":
                             result = await self._create_course(user_id, function_args)
@@ -217,6 +314,36 @@ Be conversational, helpful, and act on clear requests immediately."""
                         elif function_name == "get_course_info":
                             result = await self._get_course_info(function_args["course_id"])
                             function_results["course_info"] = result
+            else:
+                print(f"⚠️ [CourseCreationAgent] No tool calls received from OpenAI")
+                
+                # Check if we should have received a function call but didn't
+                if force_function_call and self._detect_course_name_intent(user_message, intent_info):
+                    print(f"🚨 [CourseCreationAgent] RETRY: Function call was expected but not received. Attempting manual course creation...")
+                    
+                    # Manual fallback: create course directly
+                    try:
+                        # Generate description for the course name
+                        description = await self._generate_course_description_from_name(user_message.strip())
+                        
+                        # Create course manually
+                        result = await self._create_course(user_id, {
+                            "name": user_message.strip(),
+                            "description": description
+                        })
+                        function_results["course_created"] = result
+                        course_id = result["course_id"]
+                        
+                        print(f"✅ [CourseCreationAgent] Manual course creation successful: {result['name']}")
+                        
+                    except Exception as fallback_error:
+                        print(f"❌ [CourseCreationAgent] Manual course creation failed: {fallback_error}")
+                        return {
+                            "response": f"I detected that you want to create a course called '{user_message}', but I'm having technical difficulties with the course creation process. Please try again.",
+                            "course_id": course_id,
+                            "function_results": {},
+                            "error": f"Function call retry failed: {str(fallback_error)}"
+                        }
             
             # Generate final response based on function results
             ai_response = await self._generate_response_with_context(message.content, function_results)
@@ -367,6 +494,42 @@ Be conversational, helpful, and act on clear requests immediately."""
                 "content_generated": False,
                 "error": f"Content generation failed: {str(e)}"
             }
+    
+    async def _generate_course_description_from_name(self, course_name: str) -> str:
+        """Generate a compelling course description from just the course name"""
+        try:
+            prompt = f"""Generate a compelling, concise course description for a course titled "{course_name}".
+
+The description should be:
+- 1-2 sentences maximum
+- Professional and engaging
+- Clearly explain what students will learn
+- Appropriate for the subject matter
+
+Examples:
+- "Python Programming" → "Master Python programming fundamentals and build real-world applications with hands-on projects."
+- "UX Design in AI Native World" → "Learn modern UX design principles and methodologies for creating user-centered AI-powered applications."
+- "Machine Learning 101" → "Introduction to machine learning concepts, algorithms, and practical applications for beginners."
+
+Generate ONLY the description, no additional text."""
+
+            client = await self.openai.get_client()
+            response = await client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are an expert course designer. Generate compelling course descriptions."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_completion_tokens=200
+            )
+            
+            description = response.choices[0].message.content.strip()
+            return description
+            
+        except Exception as e:
+            print(f"Error generating course description: {e}")
+            # Fallback description based on course name
+            return f"Learn the fundamentals and practical applications of {course_name.lower()}."
     
     async def _generate_course_content(self, course_name: str, course_description: str) -> Dict[str, Any]:
         """Generate learning outcomes and prerequisites using LLM"""
