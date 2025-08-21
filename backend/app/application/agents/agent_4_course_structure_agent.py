@@ -312,53 +312,83 @@ Focus on creating **instructor-quality slide descriptions** that provide clear g
                 print(f"❌ [CourseStructureAgent] Invalid course_id format: {course_id}")
                 return {"success": False, "error": f"Invalid course ID format: '{course_id}' is not a valid ObjectId"}
             
-            # Get course info
+            # Get course info and check if generation is already in progress
             course = await self.db.find_course(course_id)
             if not course:
                 return {"success": False, "error": "Course not found"}
             
-            # Get course design content
-            course_design_content = ""
-            r2_key = course.get("course_design_r2_key")
-            if r2_key:
-                course_design_content = await self.storage.get_course_design_content(r2_key)
+            # Check if structure generation is already in progress for this course
+            if course.get("structure_generation_in_progress", False):
+                print(f"⚠️ [CourseStructureAgent] Structure generation already in progress for course {course_id}")
+                return {"success": False, "error": "Structure generation is already in progress for this course. Please wait for it to complete."}
             
-            if not course_design_content:
-                return {"success": False, "error": "No course design found"}
+            # Set generation in progress flag
+            await self.db.update_document("courses", course_id, {
+                "structure_generation_in_progress": True,
+                "structure_generation_started_at": datetime.utcnow()
+            })
             
-            # Parse structure with strict constraints and incremental saving
-            parse_result = await self._parse_course_design_constrained(course_design_content, course.get("name", ""), course_id, streaming_callback)
+            try:
+                # Continue with the actual generation process
+                # Get course design content
+                course_design_content = ""
+                r2_key = course.get("course_design_r2_key")
+                if r2_key:
+                    course_design_content = await self.storage.get_course_design_content(r2_key)
+                
+                if not course_design_content:
+                    return {"success": False, "error": "No course design found"}
+                
+                # Parse structure with strict constraints and incremental saving
+                parse_result = await self._parse_course_design_constrained(course_design_content, course.get("name", ""), course_id, streaming_callback)
+                
+                if not parse_result["success"]:
+                    return parse_result
+                
+                # No constraint validation needed - generate content based on course design requirements
+                
+                # Create ContentMaterial records directly
+                materials_result = await self._create_content_materials_constrained(course_id, parse_result["structure"])
+                
+                if not materials_result["success"]:
+                    return materials_result
             
-            if not parse_result["success"]:
-                return parse_result
-            
-            # No constraint validation needed - generate content based on course design requirements
-            
-            # Create ContentMaterial records directly
-            materials_result = await self._create_content_materials_constrained(course_id, parse_result["structure"])
-            
-            if not materials_result["success"]:
-                return materials_result
-            
-            # Update course record with structure metadata
-            await self._update_course_structure_metadata(
-                course_id, 
-                parse_result["structure"], 
-                materials_result["total_materials"]
-            )
-            
-            print(f"✅ [CourseStructureAgent] Generated {materials_result['total_materials']} materials across {len(parse_result['structure']['modules'])} modules")
-            
-            return {
-                "success": True,
-                "structure": parse_result["structure"],
-                "total_materials": materials_result["total_materials"],
-                "total_modules": len(parse_result["structure"]["modules"]),
-                "constraints_applied": True
-            }
+                # Update course record with structure metadata
+                await self._update_course_structure_metadata(
+                    course_id, 
+                    parse_result["structure"], 
+                    materials_result["total_materials"]
+                )
+                
+                print(f"✅ [CourseStructureAgent] Generated {materials_result['total_materials']} materials across {len(parse_result['structure']['modules'])} modules")
+                
+                return {
+                    "success": True,
+                    "structure": parse_result["structure"],
+                    "total_materials": materials_result["total_materials"],
+                    "total_modules": len(parse_result["structure"]["modules"]),
+                    "constraints_applied": True
+                }
+                
+            finally:
+                # Always clear the generation in progress flag
+                await self.db.update_document("courses", course_id, {
+                    "structure_generation_in_progress": False,
+                    "structure_generation_completed_at": datetime.utcnow()
+                })
+                print(f"🔓 [CourseStructureAgent] Released generation lock for course {course_id}")
             
         except Exception as e:
             print(f"❌ [CourseStructureAgent] Error generating structure: {e}")
+            # Try to clear the flag in case of error
+            try:
+                await self.db.update_document("courses", course_id, {
+                    "structure_generation_in_progress": False,
+                    "structure_generation_error": str(e),
+                    "structure_generation_error_at": datetime.utcnow()
+                })
+            except:
+                pass  # Ignore errors when clearing flag
             return {"success": False, "error": f"Failed to generate structure: {str(e)}"}
     
     async def _parse_course_design_constrained(self, course_design_content: str, course_name: str, course_id: str = None, streaming_callback=None) -> Dict[str, Any]:
@@ -397,17 +427,20 @@ Focus on creating **instructor-quality slide descriptions** that provide clear g
             
             current_module = None
             total_materials_count = 0  # Track materials early to prevent constraint violations
+            processed_chapters = set()  # Track processed chapters to prevent duplicates
             
             # Get research content for dynamic generation (once for all chapters)
             research_content = await self._get_research_content(course_name)
             
-            # Clear existing materials if any to prevent duplicates
+            # Clear existing materials if any to prevent duplicates - with course-specific isolation
             if course_id:
                 existing_count = await self.db.count_documents("content_materials", {"course_id": ObjectId(course_id)})
                 if existing_count > 0:
-                    print(f"⚠️ [CourseStructureAgent] Found {existing_count} existing materials - clearing to prevent duplicates")
+                    print(f"⚠️ [CourseStructureAgent] Found {existing_count} existing materials for course {course_id} - clearing to prevent duplicates")
                     db = await self.db.get_database()
-                    await db.content_materials.delete_many({"course_id": ObjectId(course_id)})
+                    # Use course_id in the delete query to ensure we only delete materials for THIS course
+                    delete_result = await db.content_materials.delete_many({"course_id": ObjectId(course_id)})
+                    print(f"🗑️ [CourseStructureAgent] Deleted {delete_result.deleted_count} materials for course {course_id}")
             
             # Single pass: collect chapter information, generate materials, and save immediately
             for i, line in enumerate(lines):
@@ -443,6 +476,18 @@ Focus on creating **instructor-quality slide descriptions** that provide clear g
                         module_num = int(chapter_match.group(1))
                         chapter_num = int(chapter_match.group(2))
                         chapter_title = chapter_match.group(3)
+                        
+                        # Create unique chapter identifier to prevent duplicates
+                        chapter_id = f"{module_num}.{chapter_num}"
+                        
+                        # Check if this chapter has already been processed
+                        if chapter_id in processed_chapters:
+                            print(f"⚠️ [CourseStructureAgent] Chapter {chapter_id}: {chapter_title} already processed, skipping duplicate")
+                            continue
+                        
+                        # Mark chapter as processed
+                        processed_chapters.add(chapter_id)
+                        print(f"🔄 [CourseStructureAgent] Processing Chapter {chapter_id}: {chapter_title}")
                         
                         # No material limits - generate content based on course design requirements
                         
@@ -1346,6 +1391,18 @@ OUTPUT FORMAT (JSON only):
         """Save materials for a single chapter immediately to database with chapter-scoped numbering and real-time streaming events"""
         try:
             if not materials:
+                return
+            
+            # Check if materials for this chapter already exist to prevent duplicates
+            db = await self.db.get_database()
+            existing_materials = await db.content_materials.find_one({
+                "course_id": ObjectId(course_id),
+                "module_number": module_number,
+                "chapter_number": chapter_number
+            })
+            
+            if existing_materials:
+                print(f"⚠️ [CourseStructureAgent] Materials for Chapter {module_number}.{chapter_number} already exist, skipping to prevent duplicates")
                 return
             
             # Use chapter-scoped counters (restart numbering for each chapter)
