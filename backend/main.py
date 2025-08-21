@@ -20,11 +20,20 @@ app = FastAPI(
     redoc_url=None if IS_PRODUCTION else "/redoc"  # Disable redoc in production
 )
 
-# Add request logging middleware (simplified for production)
+# Combined middleware for HTTPS redirect and request logging
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def combined_middleware(request: Request, call_next):
     start_time = time.time()
     
+    # HTTPS redirect logic - Force HTTPS in production
+    if IS_PRODUCTION and request.headers.get("x-forwarded-proto") == "http":
+        # Redirect HTTP to HTTPS
+        https_url = str(request.url).replace("http://", "https://", 1)
+        print(f"🔒 [HTTPS REDIRECT] {request.url} → {https_url}")
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=https_url, status_code=301)
+    
+    # Request logging (development only)
     if not IS_PRODUCTION:
         print(f"🌐 [REQUEST] {request.method} {request.url}")
         print(f"   🔍 Path: {request.url.path}")
@@ -32,6 +41,15 @@ async def log_requests(request: Request, call_next):
     
     response = await call_next(request)
     
+    # Fix any HTTP redirects to be HTTPS in production
+    if IS_PRODUCTION and response.status_code in [301, 302, 307, 308]:
+        location = response.headers.get("location")
+        if location and location.startswith("http://"):
+            https_location = location.replace("http://", "https://", 1)
+            print(f"🔒 [REDIRECT FIX] {location} → {https_location}")
+            response.headers["location"] = https_location
+    
+    # Response logging
     process_time = time.time() - start_time
     
     if not IS_PRODUCTION:
