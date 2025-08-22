@@ -90,7 +90,12 @@ export default function Home() {
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Button>
                 </Link>
-                <Button variant="outline" size="lg" className="text-lg px-8 py-3 h-auto border-gray-300 text-gray-700 hover:bg-gray-50">
+                <Button 
+                  variant="outline" 
+                  size="lg" 
+                  className="text-lg px-8 py-3 h-auto border-gray-300 text-gray-700 hover:bg-gray-50"
+                  onClick={() => window.open('https://www.youtube.com/watch?v=ISOqDeEmXOw&ab_channel=ManthanDesai', '_blank')}
+                >
                   <Play className="w-5 h-5 mr-2" />
                   Watch Demo
                 </Button>
