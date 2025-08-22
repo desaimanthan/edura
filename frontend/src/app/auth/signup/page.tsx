@@ -18,7 +18,7 @@ export default function SignUp() {
   const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [selectedRole, setSelectedRole] = useState("Student")
+  const [selectedRole, setSelectedRole] = useState("Teacher")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isClient, setIsClient] = useState(false)
