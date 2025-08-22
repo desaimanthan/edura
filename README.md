@@ -101,6 +101,16 @@ Edura/
 
 ## 📁 Project Structure
 
+```
+Edura/
+├── backend/           # FastAPI Python application
+├── frontend/          # Next.js React application
+├── docs/              # Documentation and development notes
+├── tests/             # Test files
+├── scripts/           # Utility and migration scripts
+└── README.md         # This file
+```
+
 ### Backend (`/backend`)
 - `main.py` - FastAPI application entry point
 - `app/models.py` - Pydantic data models
@@ -114,6 +124,22 @@ Edura/
 - `src/components/` - Reusable React components
 - `src/lib/` - Utility functions and configurations
 - `public/` - Static assets
+
+### Documentation (`/docs`)
+- Agent development guides and summaries
+- Implementation documentation
+- Architecture and planning documents
+- Feature implementation notes
+
+### Tests (`/tests`)
+- Unit and integration tests
+- Agent functionality tests
+- Feature-specific test files
+
+### Scripts (`/scripts`)
+- Database migration scripts
+- Utility scripts for maintenance
+- Data transformation tools
 
 ## 🔐 Default Roles & Permissions
 
